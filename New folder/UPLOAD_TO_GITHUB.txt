@@ -1,0 +1,16 @@
+HOW TO PUT THIS ON GITHUB (read first)
+
+1. Create a NEW empty repository on GitHub (do not add README).
+2. Open the repository page.
+3. Click "uploading an existing file".
+4. Select ALL files and folders in THIS folder (package.json, src, public, netlify.toml, ...).
+5. Drag them into the browser. Commit.
+
+WRONG: uploading the .zip file itself as one file.
+WRONG: uploading a parent folder so paths become bar-pos-cloud/package.json nested twice.
+
+CORRECT: package.json is at the ROOT of the GitHub repository.
+
+Then Netlify → Add site → Import from Git → this repo.
+Build command: npm run build
+Publish directory: dist
