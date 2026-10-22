@@ -1,0 +1,33 @@
+# Build the web app from its directory in this repository.
+[build]
+  base = "carwash-pos"
+  command = "npm install --include=dev && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  ELECTRON_SKIP_BINARY_DOWNLOAD = "1"
+  NPM_FLAGS = "--include=dev"
+
+# Serve the app for client-side routes without overriding static assets.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
