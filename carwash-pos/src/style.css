@@ -4771,3 +4771,84 @@ tr.row-inactive:hover {
     max-width: none;
   }
 }
+
+/* ===== Product images: always show full image (no crop) ===== */
+.card-image-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  background: #f1f5f9 !important;
+  min-height: 72px !important;
+  height: 88px !important;
+  border-radius: 10px !important;
+}
+.card-image-wrap img,
+.product-card.sell-card .card-image-wrap img,
+.product-card.stock-card .card-image-wrap img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+.product-thumb,
+.product-thumb-framed {
+  object-fit: contain !important;
+  background: #f1f5f9;
+}
+html.dark .card-image-wrap {
+  background: #1e293b !important;
+}
+html.dark .product-thumb,
+html.dark .product-thumb-framed {
+  background: #1e293b;
+}
+/* Sell grid: slightly taller image area so full product is readable */
+.product-card.sell-card .card-image-wrap {
+  height: 96px !important;
+  min-height: 96px !important;
+}
+@media (max-width: 800px) {
+  .product-card.sell-card .card-image-wrap {
+    height: 80px !important;
+    min-height: 80px !important;
+  }
+}
+
+/* Login password keyboard — keep password field visible above keys */
+.login-wrap.login-with-kb {
+  align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 8px;
+  overflow-y: auto;
+}
+.login-card-password {
+  max-width: 420px;
+  width: 100%;
+}
+.login-kb-dock {
+  margin-top: 12px;
+  width: 100%;
+}
+.login-kb-dock .osk-overlay {
+  position: relative !important;
+  inset: auto !important;
+  background: transparent !important;
+  display: block !important;
+  padding: 0 !important;
+}
+.login-kb-dock .osk-wrap {
+  max-width: 100%;
+  margin: 0 auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  border-radius: 12px;
+}
+.login-kb-dock .osk-preview {
+  font-size: 18px;
+  letter-spacing: 2px;
+  min-height: 36px;
+  word-break: break-all;
+}

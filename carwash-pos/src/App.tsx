@@ -280,6 +280,40 @@ function isOfflineSession(s: any) {
       s.user?.user_metadata?.offline === true)
   );
 }
+
+/** Find offline vault entry by email + password (hash and/or remembered plaintext). */
+async function matchOfflineCred(email: string, password: string): Promise<OfflineCred | null> {
+  const em = email.trim().toLowerCase();
+  const pw = password.trim();
+  if (!em || !pw) return null;
+  const h = await hashPin(pw);
+  const list = loadOfflineCreds();
+  let match = list.find((c) => c.email === em && c.passwordHash && c.passwordHash === h) || null;
+  if (match) return match;
+  // Fallback: remembered plaintext on this device (same email + password)
+  try {
+    const raw = localStorage.getItem("barpos_remember_login");
+    if (raw) {
+      const saved = JSON.parse(raw) as { email?: string; password?: string };
+      if (
+        String(saved.email || "").trim().toLowerCase() === em &&
+        String(saved.password || "") === pw
+      ) {
+        match = list.find((c) => c.email === em) || null;
+        if (match) {
+          // Back-fill hash so next offline login is faster
+          match = { ...match, passwordHash: h, updatedAt: new Date().toISOString() };
+          upsertOfflineCred(match);
+          return match;
+        }
+      }
+    }
+  } catch {
+    /* */
+  }
+  return null;
+}
+
 function hydrateFromCache(userId?: string) {
   const profile = loadCachedProfile();
   const products = loadCachedProducts();
@@ -653,26 +687,39 @@ export default function App() {
     }
   }, []);
 
-useEffect(() => {
-    // Force login screen every launch — no auto sign-in from persisted session
+  // Never auto sign-in: every launch shows login until user presses Sign in
+  useEffect(() => {
+    let cancelled = false;
     setSession(null);
     setProfile(null);
+    (async () => {
+      if (!supabase) return;
+      try {
+        // Clear persisted Supabase session from this browser so the app never skips login
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        /* ignore */
+      }
+      if (!cancelled) {
+        setSession(null);
+        setProfile(null);
+      }
+    })();
     if (!supabase) return;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event === "TOKEN_REFRESHED" && !s) return;
+    } = supabase.auth.onAuthStateChange((event) => {
+      // Do not restore session from storage / INITIAL_SESSION / SIGNED_IN
+      // Session enters the UI only via explicit finishLogin() after Sign in
       if (event === "SIGNED_OUT") {
         setSession(null);
         setProfile(null);
-        return;
-      }
-      // Only after explicit Sign in (not INITIAL_SESSION restore)
-      if (event === "SIGNED_IN" && s) {
-        setSession(s);
       }
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -1139,20 +1186,49 @@ useEffect(() => {
     if (!session) return;
     setSession(session);
 
-    // Offline session or no network: hydrate from cache only
+    // Offline session or no network: hydrate from cache + offline vault
     if (isOfflineSession(session) || !navigator.onLine) {
       const cached = hydrateFromCache(session.user?.id);
-      if (cached.profile) {
-        setProfile(cached.profile);
+      let profile = cached.profile;
+      if (!profile) {
+        const cred = loadOfflineCreds().find(
+          (c) =>
+            c.userId === session.user?.id ||
+            c.email === String(session.user?.email || "").toLowerCase(),
+        );
+        if (cred?.profile) {
+          profile = cred.profile;
+          cacheProfile(profile);
+        }
+      }
+      if (profile) {
+        setProfile(profile);
         if (cached.products?.length) setProducts(cached.products);
+        else {
+          try {
+            const prods = loadCachedProducts();
+            if (prods?.length) setProducts(prods);
+          } catch {
+            /* */
+          }
+        }
         if (cached.settings) setSettings(cached.settings);
+        else {
+          try {
+            const s = loadCachedSettings();
+            if (s) setSettings(s);
+          } catch {
+            /* */
+          }
+        }
         setError("");
         flash("Offline mode — cached data. Sales sync when internet returns.");
         return;
       }
       setError(
-        "No offline data on this device yet. Connect to the internet once, sign in, then offline login will work.",
+        "No offline data on this device yet. Connect to the internet once, sign in online, then offline login will work.",
       );
+      setSession(null);
       return;
     }
 
@@ -1247,34 +1323,71 @@ useEffect(() => {
   }
 
 
+  /** Collect candidate emails for password-only login (remembered + offline vault). */
+  function loginEmailCandidates(typedEmail?: string): string[] {
+    const out: string[] = [];
+    const add = (e?: string) => {
+      const v = String(e || "").trim().toLowerCase();
+      if (v && !out.includes(v)) out.push(v);
+    };
+    add(typedEmail);
+    try {
+      const raw = localStorage.getItem("barpos_remember_login");
+      if (raw) {
+        const s = JSON.parse(raw) as { email?: string };
+        add(s.email);
+      }
+    } catch {
+      /* */
+    }
+    for (const c of loadOfflineCreds()) add(c.email);
+    return out;
+  }
+
+  /** Password-only sign-in: detect staff from password (admin/cashier/etc.). */
   async function signIn(e?: React.FormEvent) {
     if (e) e.preventDefault();
     setLoginBusy(true);
     setError("");
     try {
-      const em = email.trim().toLowerCase();
       const pw = password.trim();
-      if (!em || !pw) {
-        setError("Enter email and password");
+      if (!pw) {
+        setError("Enter your password");
         setLoginBusy(false);
         return;
       }
+      const candidates = loginEmailCandidates(email);
 
-      // --- OFFLINE EMAIL LOGIN ---
+      // --- OFFLINE: match password against vault (any staff on this device) ---
       if (!navigator.onLine || !supabase) {
         const h = await hashPin(pw);
-        const match = loadOfflineCreds().find(
-          (c) => c.email === em && c.passwordHash && c.passwordHash === h,
-        );
+        let match =
+          loadOfflineCreds().find((c) => c.passwordHash && c.passwordHash === h) || null;
+        if (!match) {
+          // remembered plaintext
+          try {
+            const raw = localStorage.getItem("barpos_remember_login");
+            if (raw) {
+              const s = JSON.parse(raw) as { email?: string; password?: string };
+              if (String(s.password || "") === pw) {
+                match =
+                  loadOfflineCreds().find(
+                    (c) => c.email === String(s.email || "").toLowerCase(),
+                  ) || null;
+              }
+            }
+          } catch {
+            /* */
+          }
+        }
         if (!match) {
           setError(
-            !navigator.onLine
-              ? "Offline login failed. Sign in once while online on this device to enable offline access."
-              : "App not configured (missing Supabase keys).",
+            "Offline login failed. Sign in once while online on this device so this password is saved.",
           );
           setLoginBusy(false);
           return;
         }
+        setEmail(match.email);
         cacheProfile(match.profile);
         setShowAlphaKb(false);
         await finishLogin(makeOfflineSession(match.userId, match.email));
@@ -1282,56 +1395,64 @@ useEffect(() => {
         return;
       }
 
-      // --- ONLINE ---
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: em,
-        password: pw,
-      });
-      if (error) {
-        // Network-ish failure → try offline vault
-        const msg = error.message || "Login failed";
-        if (/fetch|network|Failed to fetch|abort|timeout|offline/i.test(msg)) {
-          const h = await hashPin(pw);
-          const match = loadOfflineCreds().find(
-            (c) => c.email === em && c.passwordHash && c.passwordHash === h,
-          );
-          if (match) {
-            cacheProfile(match.profile);
-            setShowAlphaKb(false);
-            await finishLogin(makeOfflineSession(match.userId, match.email));
-            setLoginBusy(false);
-            return;
+      // --- ONLINE: try candidates until one password works ---
+      let lastErr = "";
+      const tryList = candidates.length ? candidates : [];
+      // If user typed an email, try it first; else only known device emails
+      for (const em of tryList) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: em,
+          password: pw,
+        });
+        if (!error && data.session) {
+          setEmail(em);
+          try {
+            localStorage.setItem(
+              "barpos_remember_login",
+              JSON.stringify({
+                email: em,
+                password: pw,
+                remember: true,
+                rememberPassword: true,
+              }),
+            );
+            setRememberMe(true);
+          } catch {
+            /* */
           }
+          setShowAlphaKb(false);
+          await finishLogin(data.session, { password: pw });
+          setLoginBusy(false);
+          return;
         }
-        if (/invalid login credentials/i.test(msg)) {
-          setError("Invalid email or password. Check your credentials and try again.");
-        } else if (/email not confirmed/i.test(msg)) {
-          setError(
-            "Email not confirmed. In Supabase → Authentication → Users, confirm the user (or turn off Confirm email).",
-          );
-        } else {
-          setError(msg);
-        }
-        setLoginBusy(false);
-        return;
+        if (error) lastErr = error.message || lastErr;
       }
-      if (data.session) {
-        try {
-          localStorage.setItem(
-            "barpos_remember_login",
-            JSON.stringify({
-              email: em,
-              password: pw,
-              remember: true,
-              rememberPassword: true,
-            }),
-          );
-          setRememberMe(true);
-        } catch {
-          /* ignore */
+
+      // Network failure → offline vault by password hash
+      if (/fetch|network|Failed to fetch|abort|timeout|offline|Load failed|NetworkError/i.test(lastErr)) {
+        const h = await hashPin(pw);
+        const match =
+          loadOfflineCreds().find((c) => c.passwordHash && c.passwordHash === h) || null;
+        if (match) {
+          setEmail(match.email);
+          cacheProfile(match.profile);
+          setShowAlphaKb(false);
+          await finishLogin(makeOfflineSession(match.userId, match.email));
+          setLoginBusy(false);
+          return;
         }
-        setShowAlphaKb(false);
-        await finishLogin(data.session, { password: pw });
+      }
+
+      if (/invalid login credentials/i.test(lastErr) || !lastErr) {
+        setError(
+          candidates.length
+            ? "Wrong password for saved staff on this device."
+            : "No staff saved on this device yet. Sign in once with email + password while online.",
+        );
+      } else if (/email not confirmed/i.test(lastErr)) {
+        setError("Email not confirmed in Supabase Authentication.");
+      } else {
+        setError(lastErr || "Sign in failed");
       }
     } finally {
       setLoginBusy(false);
@@ -2299,20 +2420,36 @@ useEffect(() => {
       0,
     ),
     cost = cart.reduce((n, x) => n + x.qty * Number(x.product.cost_price), 0);
-  /** Ensure a live cloud session — silent re-login with remembered credentials when needed */
+  /**
+   * Ensure Supabase client has a live cloud JWT for queue sync.
+   * Does not open the login screen for a logged-out user.
+   * After offline work the JWT is often missing/expired — re-auth with remembered password.
+   */
   async function ensureCloudSession(): Promise<boolean> {
     if (!supabase) return false;
+    // Need someone using the till (or pending queue will retry when they sign in)
+    if (!session && !(pendingSales.length + pendingStock.length)) return false;
+
+    const tokenOk = (s: any) => {
+      if (!s || isOfflineSession(s) || !s.access_token) return false;
+      const exp = Number(s.expires_at || 0);
+      if (exp && exp * 1000 < Date.now() - 30_000) return false;
+      return true;
+    };
+
     try {
       const { data } = await supabase.auth.getSession();
       const live = data.session;
-      if (live && !isOfflineSession(live as any) && live.access_token) {
+      if (tokenOk(live)) {
+        // Upgrade offline UI session to real tokens when available
         if (!session || isOfflineSession(session)) setSession(live);
         return true;
       }
     } catch {
-      /* try password refresh below */
+      /* fall through to password refresh */
     }
-    // Silent re-login from remembered credentials
+
+    // Silent cloud re-login for sync (remembered email/password on this device)
     try {
       const raw = localStorage.getItem("barpos_remember_login");
       if (!raw) return false;
@@ -3906,19 +4043,22 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
   if (!configured) return <SetupScreen />;
   if (!session)
     return (
-      <div className="login-wrap">
-        <div className="login-card">
+      <div className={"login-wrap" + (showAlphaKb && kbTarget === "loginPassword" ? " login-with-kb" : "")}>
+        <div className="login-card login-card-password">
           <div className="brand-mark login-brand">
-            {settings.logo_url || "/carwash-logo.png" ? (
-              <img src={settings.logo_url || "/carwash-logo.png"} alt="Carwash POS" className="login-logo-img" />
-            ) : (
-              <Beer size={28} />
-            )}
+            <img
+              src={settings.logo_url || "/carwash-logo.png"}
+              alt="Carwash POS"
+              className="login-logo-img"
+            />
           </div>
           <h1>{settings.bar_name || "Carwash POS"}</h1>
+          <p className="tiny muted center-text" style={{ marginTop: -6, marginBottom: 8 }}>
+            Enter password only — system detects admin or cashier
+          </p>
           {!isOnline && (
             <p className="tiny center-text" style={{ marginTop: -4, marginBottom: 8, color: "#f59e0b" }}>
-              Offline — use credentials already used on this device
+              Offline — use a password already used on this device
             </p>
           )}
           <form
@@ -3928,32 +4068,45 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             }}
             className="stack"
           >
-            <label>
-              Email
-              <input
-                id="login-email-input"
-                type="email"
-                required
-                autoComplete="username"
-                inputMode="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@email.com"
-                style={{ textAlign: "left", fontSize: 16 }}
-              />
-            </label>
+            {loadOfflineCreds().length === 0 && (
+              <label>
+                Email <span className="tiny muted">(first time on this device only)</span>
+                <input
+                  id="login-email-input"
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="staff@email.com"
+                  style={{ textAlign: "left", fontSize: 16 }}
+                />
+              </label>
+            )}
             <label>
               Password
               <div className="secret-field">
                 <input
                   id="login-password-input"
-                  type={showSecret ? "text" : "password"}
+                  type={showSecret || (showAlphaKb && kbTarget === "loginPassword") ? "text" : "password"}
                   required
                   autoComplete="current-password"
                   value={password}
+                  readOnly={showAlphaKb && kbTarget === "loginPassword"}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  style={{ textAlign: "left", fontSize: 16 }}
+                  onFocus={() => {
+                    setKbTarget("loginPassword");
+                    setKbMode("alnum");
+                    setShowAlphaKb(true);
+                    setShowSecret(true);
+                  }}
+                  onClick={() => {
+                    setKbTarget("loginPassword");
+                    setKbMode("alnum");
+                    setShowAlphaKb(true);
+                    setShowSecret(true);
+                  }}
+                  placeholder="Tap to type password"
+                  style={{ textAlign: "left", fontSize: 18, letterSpacing: 1 }}
                 />
                 <button
                   type="button"
@@ -3965,22 +4118,153 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </button>
               </div>
             </label>
-            <p className="tiny muted" style={{ margin: 0 }}>
-              Email is always remembered. Password is saved on this device after sign-in for faster till access.
-            </p>
             <button
               className="primary full login-sign-btn"
-              disabled={loginBusy || !email.trim() || !password.trim()}
+              disabled={loginBusy || !password.trim()}
               type="submit"
             >
               {loginBusy ? "Signing in…" : "Sign in"}
             </button>
             {error && <p className="error">{error}</p>}
           </form>
+          {showAlphaKb && kbTarget === "loginPassword" && (
+            <div className="login-kb-dock">
+              <OnScreenKeyboard
+                mode="alnum"
+                value={password}
+                onKey={kbType}
+                onBack={kbBack}
+                onSpace={kbSpace}
+                onClose={() => {
+                  setShowAlphaKb(false);
+                  setKbTarget(null);
+                  if (password.trim()) void signIn();
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
     );
-          setShowNotifs((v) => !v);
+
+  if (!profile)
+    return (
+      <div className="center">
+        <RefreshCw className="spin" />
+        <p>Loading your account…</p>
+        {error && <p className="error">{error}</p>}
+        <button className="secondary" onClick={loadProfile}>
+          Retry
+        </button>
+      </div>
+    );
+  if (!profile.active)
+    return (
+      <div className="center">
+        <h2>Account disabled</h2>
+        <p>Ask your administrator to activate your account.</p>
+        <button className="secondary" onClick={signOut}>
+          Sign out
+        </button>
+      </div>
+    );
+  const isAdmin = profile.role === "admin";
+  const allNav = [
+    { name: "Dashboard", icon: LayoutDashboard },
+    { name: "Sell", icon: ShoppingCart },
+    { name: "Receive Stock", icon: Plus },
+    { name: "Inventory", icon: ClipboardList },
+    { name: "Products", icon: Package },
+    { name: "Credits", icon: CircleDollarSign },
+    { name: "Suppliers", icon: Package },
+    { name: "Expenses", icon: CircleDollarSign },
+    { name: "Reports", icon: LayoutDashboard },
+    { name: "Users", icon: Package },
+    { name: "Activity Log", icon: ClipboardList },
+    { name: "Backup & Settings", icon: RefreshCw },
+  ];
+  // Finer permissions: admin all tabs; others via allowed_tabs / role defaults
+  const nav = allNav.filter((n) => canAccessTab(profile, n.name));
+  return (
+    <>
+    <div className={"app-shell" + (mobileMenuOpen ? " menu-open" : "")}>
+      {mobileMenuOpen && (
+        <div
+          className="mobile-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      <aside className={"sidebar" + (mobileMenuOpen ? " open" : "")}>
+        <div className="logo">
+          <img
+            src={settings.logo_url || "/carwash-logo.png"}
+            alt="Carwash POS"
+            className="logo-img"
+          />
+          <span>
+            <b>{settings.bar_name || "Carwash POS"}</b>
+            <small>Cloud workspace</small>
+          </span>
+        </div>
+        <div className="nav-label">WORKSPACE</div>
+        <div className="sidebar-nav-scroll">
+          {nav.map((n) => (
+            <button
+              key={n.name}
+              className={"nav-item " + (tab === n.name ? "active" : "")}
+              onClick={() => {
+                setTab(n.name);
+                setMobileMenuOpen(false);
+              }}
+            >
+              <n.icon size={18} />
+              {n.name}
+            </button>
+          ))}
+        </div>
+        <div className="side-bottom">
+          <div className="user-chip">
+            <div className="avatar">
+              {(profile.full_name || session.user.email || "U")
+                .slice(0, 1)
+                .toUpperCase()}
+            </div>
+            <div className="user-info">
+              <b>{profile.full_name || session.user.email}</b>
+              <small>{profile.role}</small>
+            </div>
+          </div>
+          <button className="nav-item" onClick={signOut}>
+            <LogOut size={18} />
+            Sign out
+          </button>
+        </div>
+      </aside>
+      <main className="main">
+        <header className="topbar">
+          <div className="topbar-left">
+            <button
+              type="button"
+              className="menu-toggle"
+              aria-label="Open menu"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+            >
+              ☰
+            </button>
+            <div>
+              <div className="eyebrow">BAR MANAGEMENT</div>
+              <h2>{tab}</h2>
+            </div>
+          </div>
+          <div className="top-actions">
+            {isAdmin && (
+              <div className="notif-wrap">
+                <button
+                  type="button"
+                  className="icon-btn notif-btn"
+                  title="Notifications"
+                  onClick={() => {
+                    setShowNotifs((v) => !v);
                     if (!showNotifs) markNotificationsRead();
                   }}
                 >
@@ -4924,7 +5208,13 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             <div className="page-tools">
               <div>
                 <h3>Inventory audit</h3>
+                <p className="muted tiny">
+                  {isAdmin
+                    ? "Full stocktake report with inventory values (admin only)."
+                    : "Count stock by product. Quantities only — costs are hidden."}
+                </p>
               </div>
+              {isAdmin ? (
               <div className="row-actions">
                 <select
                   value={varianceRange}
@@ -4941,8 +5231,9 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   <Download size={16} /> Export variance
                 </button>
               </div>
+              ) : null}
             </div>
-            {(() => {
+            {isAdmin && (() => {
               const rows = getStocktakeVarianceRows();
               const byCat = getVarianceByCategory();
               const net = rows.reduce((n, r) => n + r.variance, 0);
@@ -5090,8 +5381,13 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                                 (p.stock_qty <= p.min_stock ? " stock-low" : " stock-ok")
                               }
                             >
-                              {p.stock_qty}
+                              Qty {p.stock_qty}
                             </span>
+                            {isAdmin && (
+                              <small className="tiny muted">
+                                Cost {money(Number(p.cost_price))}
+                              </small>
+                            )}
                           </div>
                           <strong className="card-action">Audit</strong>
                       </button>
@@ -6823,6 +7119,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           onClose={() => {
             setShowCreditorModal(false);
             setShowAlphaKb(false);
+            setKbTarget(null);
           }}
         >
           <div className="stack">
@@ -6831,10 +7128,11 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               value={creditor}
               onChange={(e) => setCreditor(e.target.value)}
               onFocus={() => openKb("creditor", "alpha")}
+              onClick={() => openKb("creditor", "alpha")}
               placeholder="Creditor name"
               className="creditor-display"
             />
-            {showAlphaKb && (
+            {showAlphaKb && kbTarget === "creditor" && (
               <OnScreenKeyboard
                 mode="alpha"
                 value={creditor}
@@ -6842,9 +7140,15 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 onBack={kbBack}
                 onSpace={kbSpace}
                 onClose={() => {
-                  setShowCreditorModal(false);
+                  // Done on keyboard = complete credit sale (not cancel)
                   setShowAlphaKb(false);
                   setKbTarget(null);
+                  if (!creditor.trim()) {
+                    setError("Enter the creditor name before completing a credit sale.");
+                    return;
+                  }
+                  setShowCreditorModal(false);
+                  void checkout("credit");
                 }}
               />
             )}
@@ -6855,6 +7159,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 onClick={() => {
                   setCreditor("");
                   setShowCreditorModal(false);
+                  setShowAlphaKb(false);
+                  setKbTarget(null);
                   setPayment("cash");
                 }}
               >
@@ -6865,12 +7171,17 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 className="primary"
                 disabled={!creditor.trim() || busy}
                 onClick={() => {
+                  if (!creditor.trim()) {
+                    setError("Enter the creditor name");
+                    return;
+                  }
                   setShowCreditorModal(false);
                   setShowAlphaKb(false);
-                  checkout("credit");
+                  setKbTarget(null);
+                  void checkout("credit");
                 }}
               >
-                Complete & print
+                Done — complete credit sale
               </button>
             </div>
           </div>
