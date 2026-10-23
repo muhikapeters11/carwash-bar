@@ -1,23 +1,28 @@
-# Netlify — GitHub continuous deploy
-# Install ALL deps (including vite in devDependencies) before build.
-# Skip Electron binary download — website does not need it.
+# Carwash POS — Netlify (GitHub continuous deploy)
+#
+# REQUIREMENTS (repo root must be this app folder):
+#   - package.json, index.html, vite.config.ts, netlify.toml at the ROOT of the GitHub repo
+#   - Do NOT nest the app under an extra folder like carwash-pos/carwash-pos/
+#   - In Netlify UI: Base directory = (empty / repo root), Publish = dist
+#
+# Build output: dist/index.html + assets (from `vite build`)
+
 [build]
   command = "npm install --include=dev && npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
-  # Prevent electron postinstall from downloading ~100MB binary on Netlify
   ELECTRON_SKIP_BINARY_DOWNLOAD = "1"
-  # Some CI environments omit devDependencies unless explicitly included
   NPM_FLAGS = "--include=dev"
 
-# SPA fallback — fixes Netlify "Page not found" on refresh / deep links
+# SPA fallback for client-side routes.
+# Do NOT use force=true — that would rewrite real JS/CSS files to index.html
+# and break the app. Without force, existing files in dist are served first.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  force = false
 
 [[headers]]
   for = "/sw.js"
@@ -34,3 +39,8 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1350,16 +1350,26 @@ export default function App() {
     setLoginBusy(true);
     setError("");
     try {
+      const em = email.trim().toLowerCase();
       const pw = password.trim();
-      if (!pw) {
-        setError("Enter your password");
+      if (!em || !pw) {
+        setError("Enter email and password");
         setLoginBusy(false);
         return;
       }
-      const candidates = loginEmailCandidates(email);
+      const candidates = loginEmailCandidates(em);
 
       // --- OFFLINE: match password against vault (any staff on this device) ---
       if (!navigator.onLine || !supabase) {
+        const matchByEmail = await matchOfflineCred(em, pw);
+        if (matchByEmail) {
+          setEmail(matchByEmail.email);
+          cacheProfile(matchByEmail.profile);
+          setShowAlphaKb(false);
+          await finishLogin(makeOfflineSession(matchByEmail.userId, matchByEmail.email));
+          setLoginBusy(false);
+          return;
+        }
         const h = await hashPin(pw);
         let match =
           loadOfflineCreds().find((c) => c.passwordHash && c.passwordHash === h) || null;
@@ -4043,7 +4053,14 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
   if (!configured) return <SetupScreen />;
   if (!session)
     return (
-      <div className={"login-wrap" + (showAlphaKb && kbTarget === "loginPassword" ? " login-with-kb" : "")}>
+      <div
+        className={
+          "login-wrap" +
+          (showAlphaKb && (kbTarget === "loginPassword" || kbTarget === "loginEmail")
+            ? " login-with-kb"
+            : "")
+        }
+      >
         <div className="login-card login-card-password">
           <div className="brand-mark login-brand">
             <img
@@ -4053,12 +4070,9 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             />
           </div>
           <h1>{settings.bar_name || "Carwash POS"}</h1>
-          <p className="tiny muted center-text" style={{ marginTop: -6, marginBottom: 8 }}>
-            Enter password only — system detects admin or cashier
-          </p>
           {!isOnline && (
             <p className="tiny center-text" style={{ marginTop: -4, marginBottom: 8, color: "#f59e0b" }}>
-              Offline — use a password already used on this device
+              Offline — use email and password already used on this device
             </p>
           )}
           <form
@@ -4068,26 +4082,41 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             }}
             className="stack"
           >
-            {loadOfflineCreds().length === 0 && (
-              <label>
-                Email <span className="tiny muted">(first time on this device only)</span>
-                <input
-                  id="login-email-input"
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="staff@email.com"
-                  style={{ textAlign: "left", fontSize: 16 }}
-                />
-              </label>
-            )}
+            <label>
+              Email
+              <input
+                id="login-email-input"
+                type="email"
+                required
+                autoComplete="username"
+                inputMode="email"
+                value={email}
+                readOnly={showAlphaKb && kbTarget === "loginEmail"}
+                onChange={(e) => setEmail(e.target.value)}
+                onFocus={() => {
+                  setKbTarget("loginEmail");
+                  setKbMode("alnum");
+                  setShowAlphaKb(true);
+                }}
+                onClick={() => {
+                  setKbTarget("loginEmail");
+                  setKbMode("alnum");
+                  setShowAlphaKb(true);
+                }}
+                placeholder="you@email.com"
+                style={{ textAlign: "left", fontSize: 16 }}
+              />
+            </label>
             <label>
               Password
               <div className="secret-field">
                 <input
                   id="login-password-input"
-                  type={showSecret || (showAlphaKb && kbTarget === "loginPassword") ? "text" : "password"}
+                  type={
+                    showSecret || (showAlphaKb && kbTarget === "loginPassword")
+                      ? "text"
+                      : "password"
+                  }
                   required
                   autoComplete="current-password"
                   value={password}
@@ -4105,7 +4134,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                     setShowAlphaKb(true);
                     setShowSecret(true);
                   }}
-                  placeholder="Tap to type password"
+                  placeholder="Password"
                   style={{ textAlign: "left", fontSize: 18, letterSpacing: 1 }}
                 />
                 <button
@@ -4120,29 +4149,29 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             </label>
             <button
               className="primary full login-sign-btn"
-              disabled={loginBusy || !password.trim()}
+              disabled={loginBusy || !email.trim() || !password.trim()}
               type="submit"
             >
               {loginBusy ? "Signing in…" : "Sign in"}
             </button>
             {error && <p className="error">{error}</p>}
           </form>
-          {showAlphaKb && kbTarget === "loginPassword" && (
-            <div className="login-kb-dock">
-              <OnScreenKeyboard
-                mode="alnum"
-                value={password}
-                onKey={kbType}
-                onBack={kbBack}
-                onSpace={kbSpace}
-                onClose={() => {
-                  setShowAlphaKb(false);
-                  setKbTarget(null);
-                  if (password.trim()) void signIn();
-                }}
-              />
-            </div>
-          )}
+          {showAlphaKb &&
+            (kbTarget === "loginPassword" || kbTarget === "loginEmail") && (
+              <div className="login-kb-dock">
+                <OnScreenKeyboard
+                  mode="alnum"
+                  value={kbTarget === "loginEmail" ? email : password}
+                  onKey={kbType}
+                  onBack={kbBack}
+                  onSpace={kbSpace}
+                  onClose={() => {
+                    setShowAlphaKb(false);
+                    setKbTarget(null);
+                  }}
+                />
+              </div>
+            )}
         </div>
       </div>
     );
@@ -7931,8 +7960,11 @@ function OnScreenKeyboard({
   return (
     <div className="osk-overlay" onMouseDown={(e) => e.stopPropagation()}>
       <div className="osk-wrap">
-        <div className="osk-preview" id="osk-preview">
-          {value || <span className="muted">…</span>}
+        <div className="osk-preview" id="osk-preview" aria-live="polite">
+          <span className="osk-preview-label">You are typing</span>
+          <span className="osk-preview-value">
+            {value ? value : <span className="muted">…</span>}
+          </span>
         </div>
         <div
           className={

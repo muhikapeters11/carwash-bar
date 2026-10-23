@@ -1,26 +1,34 @@
-# Deploy Carwash POS on Netlify (from GitHub)
+# Netlify deploy (fix Page not found)
 
-## 1. Push this folder to GitHub
-- Repo root must contain: `package.json`, `netlify.toml`, `src/`, `public/`, `index.html`
-- Do **not** upload only the `release/` installer folder as the site
+## Correct GitHub layout
+The **root** of the GitHub repository must contain:
 
-## 2. Netlify → Add site → Import from Git
-- Build command: `npm install --include=dev && npm run build` (from netlify.toml)
-- Publish directory: `dist`
-- Node: 20
+- `package.json`
+- `netlify.toml`
+- `index.html`
+- `vite.config.ts`
+- `src/`
+- `public/`
 
-## 3. Environment variables (Site settings → Environment)
-- `VITE_SUPABASE_URL` = your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` = your Supabase **anon** key (never service_role)
+If the repo root is only a folder named `carwash-pos/` and files are inside it,
+set **Base directory** in Netlify to `carwash-pos`, **or** push the inner files to the repo root.
 
-## 4. After first deploy
-- Open the site URL — you should see the login screen (not "Page not found")
-- SPA redirects are in `netlify.toml` and `public/_redirects`
+## Netlify site settings
+| Setting | Value |
+|--------|--------|
+| Base directory | *(empty)* unless app is in a subfolder |
+| Build command | `npm install --include=dev && npm run build` |
+| Publish directory | `dist` |
+| Node version | 20 |
 
-## Common failures
-| Error | Fix |
-|-------|-----|
-| Page not found | Publish dir must be `dist`; redirects must be present |
-| vite: not found | Use build command with `--include=dev` |
-| Blank app after login | Set VITE_SUPABASE_* env vars and redeploy |
-| Build OOM | Free tier: reduce if needed; Node 20 is enough for this app |
+Environment variables:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+## Why you saw Page not found
+1. Publish directory was not `dist` (or build never produced `dist/index.html`)
+2. Repo root did not contain the app (`package.json` missing at root)
+3. SPA redirect used `force = true`, which can break static assets
+
+After fixing, trigger **Clear cache and deploy site** in Netlify.
