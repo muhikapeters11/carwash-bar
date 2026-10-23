@@ -4952,3 +4952,290 @@ html.dark .osk-preview {
   width: 100%;
   max-width: 100%;
 }
+
+
+/* ===== Full physical QWERTY (login + credit) v2.3.2 ===== */
+.login-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.login-wrap.login-with-kb {
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.login-shell {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.login-shell .login-card-password {
+  flex: 0 0 auto;
+  max-width: 520px;
+  width: calc(100% - 24px);
+  margin: 12px auto 0;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+.login-kb-dock,
+.full-osk-dock {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+}
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay,
+.modal .full-osk-dock .osk-overlay {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background: #151c2d !important;
+  display: block !important;
+  padding: 8px 6px 12px !important;
+  border-radius: 0;
+  z-index: 20;
+}
+.login-kb-dock .osk-wrap,
+.full-osk-dock .osk-wrap {
+  width: 100% !important;
+  max-width: 900px !important;
+  margin: 0 auto !important;
+  box-shadow: none !important;
+  padding: 6px !important;
+}
+/* True QWERTY rows — keys share row width evenly (no shrink to the right) */
+.login-kb-dock .osk-alpha-row,
+.full-osk-dock .osk-alpha-row,
+.login-kb-dock .osk-num-strip,
+.full-osk-dock .osk-num-strip,
+.login-kb-dock .osk-bottom-row,
+.full-osk-dock .osk-bottom-row {
+  display: flex !important;
+  width: 100% !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  justify-content: stretch !important;
+}
+.login-kb-dock .osk-key,
+.full-osk-dock .osk-key {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 46px !important;
+  font-size: 16px !important;
+  padding: 0 2px !important;
+}
+.login-kb-dock .osk-key.osk-alpha,
+.full-osk-dock .osk-key.osk-alpha {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  font-size: 17px !important;
+}
+.login-kb-dock .osk-wide,
+.full-osk-dock .osk-wide {
+  flex: 2.2 1 0 !important;
+}
+.login-kb-dock .osk-done,
+.full-osk-dock .osk-done {
+  flex: 1.6 1 0 !important;
+  background: #16a34a !important;
+}
+.login-kb-dock .osk-preview,
+.full-osk-dock .osk-preview {
+  min-height: 48px !important;
+  margin-bottom: 8px !important;
+}
+@media (min-height: 700px) {
+  .login-kb-dock .osk-key.osk-alpha,
+  .full-osk-dock .osk-key.osk-alpha {
+    min-height: 52px !important;
+    font-size: 18px !important;
+  }
+}
+@media (min-width: 800px) {
+  .login-kb-dock .osk-key.osk-alpha,
+  .full-osk-dock .osk-key.osk-alpha {
+    min-height: 54px !important;
+    font-size: 19px !important;
+  }
+}
+/* Creditor modal: room for full keyboard without page scroll */
+.modal:has(.full-osk-dock) {
+  max-width: min(920px, 100vw) !important;
+  width: 96vw !important;
+  max-height: 96vh !important;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+}
+.modal:has(.full-osk-dock) .stack {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===== Keyboard alignment + no empty space (v2.3.3) ===== */
+.login-wrap,
+.login-wrap.login-with-kb {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
+.login-shell {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+}
+.login-shell .login-card-password {
+  flex: 0 0 auto !important;
+  max-height: none !important;
+  margin: 8px auto 4px !important;
+  padding: 14px 16px !important;
+  width: min(440px, calc(100% - 16px)) !important;
+}
+.login-shell .login-card-password h1 {
+  font-size: 22px !important;
+  margin-bottom: 6px !important;
+}
+.login-shell .login-card-password .stack {
+  gap: 8px !important;
+}
+.login-shell .brand-mark.login-brand,
+.login-shell .login-logo-img {
+  width: 48px !important;
+  height: 48px !important;
+}
+/* Dock sits tight under the form — no flex grow empty band */
+.login-kb-dock {
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay {
+  position: relative !important;
+  inset: auto !important;
+  background: #1a2336 !important;
+  padding: 6px 4px 8px !important;
+  border-top: 1px solid #30394d !important;
+}
+.login-kb-dock .osk-wrap,
+.full-osk-dock .osk-wrap {
+  max-width: 720px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  padding: 4px !important;
+  gap: 4px !important;
+}
+/* Compact preview — less empty chrome */
+.login-kb-dock .osk-preview,
+.full-osk-dock .osk-preview,
+.osk-preview {
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+  margin-bottom: 4px !important;
+  gap: 0 !important;
+}
+.osk-preview-label {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+}
+.osk-preview-value {
+  font-size: 18px !important;
+  min-height: 22px !important;
+  line-height: 1.2 !important;
+}
+.login-kb-dock .osk,
+.full-osk-dock .osk,
+.osk-alpha-mode {
+  gap: 4px !important;
+}
+.login-kb-dock .osk-alpha-row,
+.full-osk-dock .osk-alpha-row,
+.login-kb-dock .osk-num-strip,
+.full-osk-dock .osk-num-strip,
+.login-kb-dock .osk-bottom-row,
+.full-osk-dock .osk-bottom-row,
+.osk-alpha-row {
+  display: flex !important;
+  width: 100% !important;
+  flex-wrap: nowrap !important;
+  gap: 3px !important;
+  justify-content: center !important;
+  margin: 0 !important;
+}
+/* Even key alignment across rows */
+.login-kb-dock .osk-key.osk-alpha,
+.full-osk-dock .osk-key.osk-alpha,
+.osk-key.osk-alpha {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  max-height: 48px !important;
+  font-size: 16px !important;
+  margin: 0 !important;
+  border-radius: 6px !important;
+}
+/* ASDF row slightly inset like a real keyboard */
+.login-kb-dock .osk-alpha-row:nth-child(2),
+.full-osk-dock .osk-alpha-row:nth-child(2),
+.osk-alpha-mode > .osk-alpha-row:nth-of-type(2) {
+  padding: 0 3% !important;
+}
+.login-kb-dock .osk-alpha-row:nth-child(3),
+.full-osk-dock .osk-alpha-row:nth-child(3),
+.osk-alpha-mode > .osk-alpha-row:nth-of-type(3) {
+  padding: 0 8% !important;
+}
+.login-kb-dock .osk-bottom-row .osk-key,
+.full-osk-dock .osk-bottom-row .osk-key {
+  min-height: 44px !important;
+  max-height: 48px !important;
+}
+.login-kb-dock .osk-wide,
+.full-osk-dock .osk-wide {
+  flex: 2.4 1 0 !important;
+}
+.login-kb-dock .osk-done,
+.full-osk-dock .osk-done {
+  flex: 1.5 1 0 !important;
+}
+/* Credit modal: no wasted vertical space */
+.modal:has(.full-osk-dock) {
+  max-height: 100dvh !important;
+  padding-bottom: 0 !important;
+}
+.modal:has(.full-osk-dock) .full-osk-dock {
+  margin-top: 6px !important;
+  flex: 0 0 auto !important;
+}

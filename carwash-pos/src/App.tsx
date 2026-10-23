@@ -665,22 +665,25 @@ export default function App() {
     return () => mq.removeEventListener?.("change", apply);
   }, []);
 
-  // Pre-fill remembered email (always) + password — never auto sign-in
+  // Always restore last email (mandatory) + optional password — never auto sign-in
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("barpos_remember_login");
-      if (!raw) return;
-      const saved = JSON.parse(raw) as {
-        email?: string;
-        password?: string;
-        remember?: boolean;
-      };
-      if (saved.email) {
-        setEmail(String(saved.email));
+      const sticky = localStorage.getItem("barpos_remember_email");
+      if (sticky) {
+        setEmail(String(sticky).trim().toLowerCase());
         setRememberMe(true);
       }
-      if (saved.password) {
-        setPassword(String(saved.password));
+      const raw = localStorage.getItem("barpos_remember_login");
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          email?: string;
+          password?: string;
+        };
+        if (saved.email) {
+          setEmail(String(saved.email).trim().toLowerCase());
+          setRememberMe(true);
+        }
+        if (saved.password) setPassword(String(saved.password));
       }
     } catch {
       /* ignore */
@@ -4061,101 +4064,112 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             : "")
         }
       >
-        <div className="login-card login-card-password">
-          <div className="brand-mark login-brand">
-            <img
-              src={settings.logo_url || "/carwash-logo.png"}
-              alt="Carwash POS"
-              className="login-logo-img"
-            />
-          </div>
-          <h1>{settings.bar_name || "Carwash POS"}</h1>
-          {!isOnline && (
-            <p className="tiny center-text" style={{ marginTop: -4, marginBottom: 8, color: "#f59e0b" }}>
-              Offline — use email and password already used on this device
-            </p>
-          )}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void signIn();
-            }}
-            className="stack"
-          >
-            <label>
-              Email
-              <input
-                id="login-email-input"
-                type="email"
-                required
-                autoComplete="username"
-                inputMode="email"
-                value={email}
-                readOnly={showAlphaKb && kbTarget === "loginEmail"}
-                onChange={(e) => setEmail(e.target.value)}
-                onFocus={() => {
-                  setKbTarget("loginEmail");
-                  setKbMode("alnum");
-                  setShowAlphaKb(true);
-                }}
-                onClick={() => {
-                  setKbTarget("loginEmail");
-                  setKbMode("alnum");
-                  setShowAlphaKb(true);
-                }}
-                placeholder="you@email.com"
-                style={{ textAlign: "left", fontSize: 16 }}
+        <div className="login-shell">
+          <div className="login-card login-card-password">
+            <div className="brand-mark login-brand">
+              <img
+                src={settings.logo_url || "/carwash-logo.png"}
+                alt="Carwash POS"
+                className="login-logo-img"
               />
-            </label>
-            <label>
-              Password
-              <div className="secret-field">
+            </div>
+            <h1>{settings.bar_name || "Carwash POS"}</h1>
+            {!isOnline && (
+              <p className="tiny center-text" style={{ marginTop: -4, marginBottom: 6, color: "#f59e0b" }}>
+                Offline mode
+              </p>
+            )}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void signIn();
+              }}
+              className="stack"
+            >
+              <label>
+                Email
                 <input
-                  id="login-password-input"
-                  type={
-                    showSecret || (showAlphaKb && kbTarget === "loginPassword")
-                      ? "text"
-                      : "password"
-                  }
+                  id="login-email-input"
+                  type="email"
                   required
-                  autoComplete="current-password"
-                  value={password}
-                  readOnly={showAlphaKb && kbTarget === "loginPassword"}
-                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="username"
+                  inputMode="email"
+                  value={email}
+                  readOnly={showAlphaKb && kbTarget === "loginEmail"}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEmail(v);
+                    try {
+                      const cleaned = v.trim().toLowerCase();
+                      if (cleaned) localStorage.setItem("barpos_remember_email", cleaned);
+                    } catch {
+                      /* */
+                    }
+                  }}
                   onFocus={() => {
-                    setKbTarget("loginPassword");
+                    setKbTarget("loginEmail");
                     setKbMode("alnum");
                     setShowAlphaKb(true);
-                    setShowSecret(true);
                   }}
                   onClick={() => {
-                    setKbTarget("loginPassword");
+                    setKbTarget("loginEmail");
                     setKbMode("alnum");
                     setShowAlphaKb(true);
-                    setShowSecret(true);
                   }}
-                  placeholder="Password"
-                  style={{ textAlign: "left", fontSize: 18, letterSpacing: 1 }}
+                  placeholder="Email"
+                  style={{ textAlign: "left", fontSize: 16 }}
                 />
-                <button
-                  type="button"
-                  className="secret-toggle"
-                  onClick={() => setShowSecret((v) => !v)}
-                  tabIndex={-1}
-                >
-                  {showSecret ? "Hide" : "Show"}
-                </button>
-              </div>
-            </label>
-            <button
-              className="primary full login-sign-btn"
-              disabled={loginBusy || !email.trim() || !password.trim()}
-              type="submit"
-            >
-              {loginBusy ? "Signing in…" : "Sign in"}
-            </button>
-            {error && <p className="error">{error}</p>}
-          </form>
+              </label>
+              <label>
+                Password
+                <div className="secret-field">
+                  <input
+                    id="login-password-input"
+                    type={
+                      showSecret || (showAlphaKb && kbTarget === "loginPassword")
+                        ? "text"
+                        : "password"
+                    }
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    readOnly={showAlphaKb && kbTarget === "loginPassword"}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onFocus={() => {
+                      setKbTarget("loginPassword");
+                      setKbMode("alnum");
+                      setShowAlphaKb(true);
+                      setShowSecret(true);
+                    }}
+                    onClick={() => {
+                      setKbTarget("loginPassword");
+                      setKbMode("alnum");
+                      setShowAlphaKb(true);
+                      setShowSecret(true);
+                    }}
+                    placeholder="Password"
+                    style={{ textAlign: "left", fontSize: 18, letterSpacing: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="secret-toggle"
+                    onClick={() => setShowSecret((v) => !v)}
+                    tabIndex={-1}
+                  >
+                    {showSecret ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+              <button
+                className="primary full login-sign-btn"
+                disabled={loginBusy || !email.trim() || !password.trim()}
+                type="submit"
+              >
+                {loginBusy ? "Signing in…" : "Sign in"}
+              </button>
+              {error && <p className="error">{error}</p>}
+            </form>
+          </div>
           {showAlphaKb &&
             (kbTarget === "loginPassword" || kbTarget === "loginEmail") && (
               <div className="login-kb-dock">
@@ -5070,8 +5084,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                     <div className="cart-empty-icon">
                       <ShoppingCart size={32} />
                     </div>
-                    <b>No items yet</b>
-                    <span>Tap a drink to add it to this order</span>
+                    <b>Cart empty</b>
                   </div>
                 )}
               </div>
@@ -5147,11 +5160,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 )}
               </div>
             </div>
-            {batchMode && (
-              <div className="alert info-alert" style={{ marginBottom: 12 }}>
-                Batch mode: tap products to add them to one supplier invoice, then Review batch.
-              </div>
-            )}
             {(() => {
               const seen = new Set<string>();
               return orderedCategories(products.filter((p) => p.active)).map((category) => {
@@ -5237,11 +5245,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             <div className="page-tools">
               <div>
                 <h3>Inventory audit</h3>
-                <p className="muted tiny">
-                  {isAdmin
-                    ? "Full stocktake report with inventory values (admin only)."
-                    : "Count stock by product. Quantities only — costs are hidden."}
-                </p>
               </div>
               {isAdmin ? (
               <div className="row-actions">
@@ -6430,7 +6433,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             </form>
             <hr style={{ margin: "24px 0", border: "none", borderTop: "1px solid var(--border, #e2e8f0)" }} />
             <h4>Backup</h4>
-            <p className="muted tiny">Download a full JSON snapshot of products, sales, expenses and settings (keep offline).</p>
             <div className="row-actions" style={{ marginBottom: 16 }}>
               <button
                 type="button"
@@ -7162,24 +7164,25 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               className="creditor-display"
             />
             {showAlphaKb && kbTarget === "creditor" && (
-              <OnScreenKeyboard
-                mode="alpha"
-                value={creditor}
-                onKey={kbType}
-                onBack={kbBack}
-                onSpace={kbSpace}
-                onClose={() => {
-                  // Done on keyboard = complete credit sale (not cancel)
-                  setShowAlphaKb(false);
-                  setKbTarget(null);
-                  if (!creditor.trim()) {
-                    setError("Enter the creditor name before completing a credit sale.");
-                    return;
-                  }
-                  setShowCreditorModal(false);
-                  void checkout("credit");
-                }}
-              />
+              <div className="full-osk-dock">
+                <OnScreenKeyboard
+                  mode="alnum"
+                  value={creditor}
+                  onKey={kbType}
+                  onBack={kbBack}
+                  onSpace={kbSpace}
+                  onClose={() => {
+                    setShowAlphaKb(false);
+                    setKbTarget(null);
+                    if (!creditor.trim()) {
+                      setError("Enter the creditor name before completing a credit sale.");
+                      return;
+                    }
+                    setShowCreditorModal(false);
+                    void checkout("credit");
+                  }}
+                />
+              </div>
             )}
             <div className="modal-actions">
               <button
