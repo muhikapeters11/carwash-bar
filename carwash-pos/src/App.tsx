@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   Beer,
@@ -1651,6 +1652,9 @@ export default function App() {
       case "expenseAmt":
         if (numOk) setExpenseForm((f) => ({ ...f, amount: f.amount + ch }));
         break;
+      case "creditPayAmt":
+        if (numOk) setCreditPayForm((f) => ({ ...f, amount: f.amount + ch }));
+        break;
       case "receiveQty":
         if (numOk) setReceiveQty((v) => v + ch);
         break;
@@ -1758,6 +1762,9 @@ export default function App() {
       case "expenseAmt":
         setExpenseForm((f) => ({ ...f, amount: cut(f.amount) }));
         break;
+      case "creditPayAmt":
+        setCreditPayForm((f) => ({ ...f, amount: cut(f.amount) }));
+        break;
       case "receiveQty":
         setReceiveQty(cut);
         break;
@@ -1853,6 +1860,8 @@ export default function App() {
         return expenseForm.description;
       case "expenseAmt":
         return expenseForm.amount;
+      case "creditPayAmt":
+        return creditPayForm.amount;
       case "receiveQty":
         return receiveQty;
       case "receiveTotalCost":
@@ -5091,7 +5100,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </div>
                 <div className="field-label cart-pay-label">Pay with</div>
                 <div className="pay-methods pay-methods-v2 pay-methods-two">
-                  {(["cash", "mpesa"] as const).map((m) => (
+                  {(["cash", "credit"] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -5101,10 +5110,15 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                       disabled={!cart.length || busy}
                       onClick={() => {
                         setPayment(m);
-                        void checkout(m);
+                        if (m === "credit") {
+                          setShowCreditorModal(true);
+                          openKb("creditor", "alnum");
+                        } else {
+                          void checkout(m);
+                        }
                       }}
                     >
-                      {m === "mpesa" ? "M-Pesa" : "Cash"}
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
                     </button>
                   ))}
                 </div>
@@ -6696,26 +6710,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </label>
               )}
             </div>
-            {showAlphaKb &&
-              kbTarget &&
-              [
-                "prodName",
-                "prodSku",
-                "prodCost",
-                "prodSell",
-                "prodStock",
-                "prodMin",
-                "prodUnits",
-              ].includes(kbTarget) && (
-                <OnScreenKeyboard
-                  mode={kbMode}
-                  value={kbValue()}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => setShowAlphaKb(false)}
-                />
-              )}
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -6840,20 +6835,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </tbody>
               </table>
             </div>
-            {showAlphaKb &&
-              kbTarget &&
-              ["batchSupplier", "batchReceiptNo", "batchQty", "batchCost"].includes(
-                kbTarget,
-              ) && (
-                <OnScreenKeyboard
-                  mode={kbMode}
-                  value={kbValue()}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => setShowAlphaKb(false)}
-                />
-              )}
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -6957,24 +6939,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 placeholder="Note"
               />
             </label>
-            {showAlphaKb &&
-              kbTarget &&
-              [
-                "receiveQty",
-                "receiveTotalCost",
-                "receiveSupplier",
-                "receiveReceiptNo",
-                "receiveNote",
-              ].includes(kbTarget) && (
-                <OnScreenKeyboard
-                  mode={kbMode}
-                  value={kbValue()}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => setShowAlphaKb(false)}
-                />
-              )}
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -7027,18 +6992,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 placeholder="Tap for keyboard"
               />
             </label>
-            {showAlphaKb &&
-              kbTarget &&
-              ["auditQty", "auditReason"].includes(kbTarget) && (
-                <OnScreenKeyboard
-                  mode={kbMode}
-                  value={kbValue()}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => setShowAlphaKb(false)}
-                />
-              )}
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -7091,17 +7045,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 placeholder="Tap for number pad"
               />
             </label>
-            {showAlphaKb &&
-              (kbTarget === "expenseDesc" || kbTarget === "expenseAmt") && (
-                <OnScreenKeyboard
-                  mode={kbMode}
-                  value={kbValue()}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => setShowAlphaKb(false)}
-                />
-              )}
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -7140,172 +7084,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               placeholder="Creditor name"
               className="creditor-display"
             />
-            {showAlphaKb && kbTarget === "creditor" && (
-              <div className="full-osk-dock">
-                <OnScreenKeyboard
-                  mode="alnum"
-                  value={creditor}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => {
-                    setShowAlphaKb(false);
-                    setKbTarget(null);
-                    if (!creditor.trim()) {
-                      setError("Enter the creditor name before completing a credit sale.");
-                      return;
-                    }
-                    setShowCreditorModal(false);
-                    void checkout("credit");
-                  }}
-                />
-              </div>
-            )}
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setCreditor("");
-                  setShowCreditorModal(false);
-                  setShowAlphaKb(false);
-                  setKbTarget(null);
-                  setPayment("cash");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="primary"
-                disabled={!creditor.trim() || busy}
-                onClick={() => {
-                  if (!creditor.trim()) {
-                    setError("Enter the creditor name");
-                    return;
-                  }
-                  setShowCreditorModal(false);
-                  setShowAlphaKb(false);
-                  setKbTarget(null);
-                  void checkout("credit");
-                }}
-              >
-                Done — complete credit sale
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-      {creditPayModal && (
-        <Modal title={`Record payment · ${creditPayModal.name}`} onClose={() => setCreditPayModal(null)}>
-          <form className="stack" onSubmit={submitCreditPayment}>
-            <p className="muted">Outstanding: <b>{money(creditPayModal.outstanding)}</b></p>
-            <label>
-              Amount (KES)
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                max={creditPayModal.outstanding}
-                required
-                value={creditPayForm.amount}
-                onChange={(e) => setCreditPayForm({ ...creditPayForm, amount: e.target.value })}
-              />
-            </label>
-            <label>
-              Payment method
-              <select
-                value={creditPayForm.method}
-                onChange={(e) => setCreditPayForm({ ...creditPayForm, method: e.target.value })}
-              >
-                <option value="cash">Cash</option>
-                <option value="mpesa">M-Pesa</option>
-                <option value="card">Card</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <label>
-              Note (optional)
-              <input
-                value={creditPayForm.note}
-                onChange={(e) => setCreditPayForm({ ...creditPayForm, note: e.target.value })}
-                placeholder="e.g. Partial payment"
-              />
-            </label>
-            <div className="modal-actions">
-              <button type="button" className="secondary" onClick={() => setCreditPayModal(null)}>
-                Cancel
-              </button>
-              <button className="primary" disabled={busy}>
-                Record & print receipt
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-      {showCreateUser && (
-        <Modal title="Create staff user" onClose={() => setShowCreateUser(false)}>
-          <form className="stack" onSubmit={createStaffUser}>
-            <label>
-              Full name
-              <input
-                required
-                value={userForm.full_name}
-                onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
-                placeholder="e.g. Jane"
-              />
-            </label>
-            <label>
-              Staff code (used at login)
-              <input
-                required
-                value={userForm.staff_code}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    staff_code: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""),
-                  })
-                }
-                placeholder="e.g. jane"
-              />
-            </label>
-            <label>
-              PIN (min 4 digits/letters)
-              <div className="secret-field">
-                <input
-                  required
-                  type={showSecret ? "text" : "password"}
-                  value={userForm.pin}
-                  
-                  onChange={(e) =>
-                    setUserForm((f) => ({ ...f, pin: e.target.value }))
-                  }
-                  onClick={() => {
-                    setKbTarget("createPin");
-                    setShowAlphaKb(true);
-                  }}
-                  placeholder="Tap for keyboard"
-                />
-                <button
-                  type="button"
-                  className="secret-toggle"
-                  onClick={() => setShowSecret((v) => !v)}
-                  tabIndex={-1}
-                >
-                  {showSecret ? "Hide" : "Show"}
-                </button>
-              </div>
-            </label>
-            {showAlphaKb && kbTarget === "createPin" && (
-              <OnScreenKeyboard
-                mode="numeric"
-                value={userForm.pin}
-                onKey={kbType}
-                onBack={kbBack}
-                onSpace={kbSpace}
-                onClose={() => setShowAlphaKb(false)}
-              />
-            )}
+
             <label>
               Role
               <select
@@ -7391,18 +7170,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 placeholder="Tap for keyboard"
               />
             </label>
-            {showAlphaKb &&
-              kbTarget &&
-              ["supName", "supPhone", "supNote"].includes(kbTarget) && (
-                <OnScreenKeyboard
-                  mode={kbMode}
-                  value={kbValue()}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => setShowAlphaKb(false)}
-                />
-              )}
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -7569,16 +7337,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </button>
               </div>
             </label>
-            {showAlphaKb && kbTarget === "pinPrompt" && (
-              <OnScreenKeyboard
-                mode="alnum"
-                value={showSecret ? pinInput : "•".repeat(pinInput.length)}
-                onKey={(ch) => setPinInput((v) => v + ch)}
-                onBack={() => setPinInput((v) => v.slice(0, -1))}
-                onSpace={() => setPinInput((v) => v + " ")}
-                onClose={() => setShowAlphaKb(false)}
-              />
-            )}
+
             <div className="modal-actions">
               <button type="button" className="secondary" onClick={() => setPinPrompt(null)}>
                 Cancel
@@ -7590,6 +7349,22 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           </form>
         </Modal>
       )}
+
+      {/* GLOBAL on-screen keyboard — always available when showAlphaKb */}
+      {showAlphaKb && !(kbTarget === "loginEmail" || kbTarget === "loginPassword") && (
+        <OnScreenKeyboard
+          mode={kbMode}
+          value={kbValue()}
+          onKey={kbType}
+          onBack={kbBack}
+          onSpace={kbSpace}
+          onClose={() => {
+            setShowAlphaKb(false);
+            setKbTarget(null);
+          }}
+        />
+      )}
+
       {factoryResetOpen && (
         <Modal
           title="Factory reset"
@@ -7922,153 +7697,221 @@ function OnScreenKeyboard({
   onClose: () => void;
 }) {
   const [capsOn, setCapsOn] = useState(false);
-  const upperRows = [
+  const isPad = mode === "numeric";
+
+  const letterRows = [
     "QWERTYUIOP".split(""),
     "ASDFGHJKL".split(""),
     "ZXCVBNM".split(""),
-  ];
-  const alphaRows = upperRows.map((row) =>
-    row.map((k) => (capsOn ? k.toUpperCase() : k.toLowerCase())),
-  );
-  // 3-column phone number pad
+  ].map((row) => row.map((k) => (capsOn ? k.toUpperCase() : k.toLowerCase())));
+
   const padRows = [
     ["1", "2", "3"],
     ["4", "5", "6"],
     ["7", "8", "9"],
-    ["⌫", "0", "✓"],
+    ["⌫", "0", "Done"],
   ];
-  const isPad = mode === "numeric";
-  return (
-    <div
-      className={"osk-overlay" + (isPad ? " osk-overlay-popup" : "")}
-      onMouseDown={(e) => e.stopPropagation()}
+
+  const keyBtn = (label: string, onClick: () => void, extra: Record<string, string | number> = {}) => (
+    <button
+      type="button"
+      key={label}
+      onClick={onClick}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        minHeight: isPad ? 84 : 68,
+        height: isPad ? 84 : 68,
+        margin: 0,
+        padding: 0,
+        border: "1px solid rgba(148,163,184,0.35)",
+        borderRadius: isPad ? 14 : 10,
+        background: label === "Done" ? "#16a34a" : "#334155",
+        color: "#f8fafc",
+        fontSize: isPad ? (label === "Done" ? 22 : 36) : 28,
+        fontWeight: 700,
+        fontFamily: "DM Sans, system-ui, sans-serif",
+        lineHeight: 1,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.25)",
+        ...extra,
+      }}
     >
-      <div className={"osk-wrap" + (isPad ? " osk-wrap-popup" : "")}>
+      {label}
+    </button>
+  );
+
+  const body = (
+    <div
+      className={isPad ? "pos-kb-root pos-kb-pad" : "pos-kb-root pos-kb-qwerty"}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      style={
+        isPad
+          ? {
+              position: "fixed",
+              inset: 0,
+              zIndex: 2147483646,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(15,23,42,0.75)",
+              padding: 16,
+              boxSizing: "border-box",
+            }
+          : {
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100vw",
+              zIndex: 2147483646,
+              background: "#0f172a",
+              borderTop: "2px solid #f59e0b",
+              padding: "10px 6px calc(12px + env(safe-area-inset-bottom, 0px))",
+              boxSizing: "border-box",
+              boxShadow: "0 -8px 32px rgba(0,0,0,0.4)",
+            }
+      }
+    >
+      <div
+        style={
+          isPad
+            ? {
+                width: "min(380px, 94vw)",
+                background: "#0f172a",
+                borderRadius: 20,
+                border: "1px solid rgba(148,163,184,0.3)",
+                padding: 16,
+                boxSizing: "border-box",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
+              }
+            : { width: "100%", maxWidth: "100%", boxSizing: "border-box" }
+        }
+      >
         {isPad && (
-          <div className="osk-popup-toolbar">
-            <span className="osk-popup-title">Number pad</span>
-            <button type="button" className="osk-popup-close" onClick={onClose}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <span style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 16 }}>
+              Number pad
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                border: 0,
+                background: "#475569",
+                color: "#fff",
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
               Close
             </button>
           </div>
         )}
-        <div
-          className={
-            "osk" +
-            (isPad ? " osk-pad-mode" : " osk-alpha-mode") +
-            (capsOn ? " osk-caps-on" : " osk-caps-off")
-          }
-        >
-          {isPad ? (
-            <>
-              {[
-                ["1", "2", "3"],
-                ["4", "5", "6"],
-                ["7", "8", "9"],
-                ["⌫", "0", "✓"],
-              ].map((row, i) => (
-                <div className="osk-row osk-pad-row" key={"pad-" + i}>
-                  {row.map((k) => (
-                    <button
-                      type="button"
-                      key={k + "-" + i}
-                      className={
-                        "osk-key osk-pad-key" +
-                        (k === "⌫" ? " osk-back" : "") +
-                        (k === "✓" ? " osk-done" : "")
-                      }
-                      onClick={() => {
-                        if (k === "⌫") onBack();
-                        else if (k === "✓") onClose();
-                        else onKey(k);
-                      }}
-                    >
-                      {k === "✓" ? "Done" : k}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </>
-          ) : (
-            <>
-              {/* Small 1-9 strip above QWERTY (alpha + alnum) */}
-              <div className="osk-row osk-num-strip osk-num-strip-small">
-                {"123456789".split("").map((k) => (
-                  <button
-                    type="button"
-                    key={k}
-                    className="osk-key osk-num-strip-key"
-                    onClick={() => onKey(k)}
-                  >
-                    {k}
-                  </button>
-                ))}
-                {mode === "alnum" && (
-                  <button
-                    type="button"
-                    className="osk-key osk-num-strip-key"
-                    onClick={() => onKey("0")}
-                  >
-                    0
-                  </button>
+
+        {!isPad && (
+          <div style={{ display: "flex", gap: 4, marginBottom: 6, width: "100%" }}>
+            {"123456789".split("").map((d) =>
+              keyBtn(d, () => onKey(d), {
+                minHeight: 44,
+                height: 44,
+                fontSize: 20,
+                background: "#1e293b",
+              }),
+            )}
+            {mode === "alnum" &&
+              keyBtn("0", () => onKey("0"), {
+                minHeight: 44,
+                height: 44,
+                fontSize: 20,
+                background: "#1e293b",
+              })}
+          </div>
+        )}
+
+        {isPad
+          ? padRows.map((row, ri) => (
+              <div
+                key={"pr" + ri}
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  marginBottom: ri < padRows.length - 1 ? 10 : 0,
+                  justifyContent: "center",
+                }}
+              >
+                {row.map((k) =>
+                  keyBtn(
+                    k,
+                    () => {
+                      if (k === "⌫") onBack();
+                      else if (k === "Done") onClose();
+                      else onKey(k);
+                    },
+                    {
+                      flex: "0 0 108px",
+                      width: 108,
+                      minWidth: 108,
+                      maxWidth: 108,
+                    },
+                  ),
                 )}
               </div>
-              {alphaRows.map((row, i) => (
-                <div className="osk-row osk-alpha-row" key={i}>
-                  {row.map((k) => (
-                    <button
-                      type="button"
-                      key={k + i}
-                      className="osk-key osk-alpha"
-                      onClick={() => onKey(k)}
-                    >
-                      {k}
-                    </button>
-                  ))}
+            ))
+          : (
+            <>
+              {letterRows.map((row, ri) => (
+                <div
+                  key={"lr" + ri}
+                  style={{
+                    display: "flex",
+                    gap: 4,
+                    marginBottom: 5,
+                    width: "100%",
+                    paddingLeft: ri === 1 ? "3%" : ri === 2 ? "8%" : 0,
+                    paddingRight: ri === 1 ? "3%" : ri === 2 ? "8%" : 0,
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {row.map((k) => keyBtn(k, () => onKey(k)))}
                 </div>
               ))}
-              <div className="osk-row osk-alpha-row osk-bottom-row">
-                <button
-                  type="button"
-                  className="osk-key osk-at"
-                  onClick={() => onKey("@")}
-                >
-                  @
-                </button>
-                <button
-                  type="button"
-                  className="osk-key osk-dot"
-                  onClick={() => onKey(".")}
-                  title="Period"
-                >
-                  .
-                </button>
-                <button
-                  type="button"
-                  className={"osk-key osk-caps" + (capsOn ? " active" : "")}
-                  onClick={() => setCapsOn((v) => !v)}
-                  aria-pressed={capsOn}
-                  title={capsOn ? "Caps On — tap for lowercase" : "Caps Off — tap for UPPERCASE"}
-                >
-                  {capsOn ? "CAPS ON" : "caps off"}
-                </button>
-                <button type="button" className="osk-key osk-wide" onClick={onSpace}>
-                  Space
-                </button>
-                <button type="button" className="osk-key osk-wide" onClick={onBack}>
-                  ⌫
-                </button>
-                <button type="button" className="osk-key osk-done" onClick={onClose}>
-                  Done
-                </button>
+              <div style={{ display: "flex", gap: 4, width: "100%" }}>
+                {keyBtn("@", () => onKey("@"), { flex: 0.9, fontSize: 20 })}
+                {keyBtn(".", () => onKey("."), { flex: 0.9, fontSize: 22 })}
+                {keyBtn(capsOn ? "CAPS" : "caps", () => setCapsOn((v) => !v), {
+                  flex: 1.3,
+                  fontSize: 14,
+                  background: capsOn ? "#f59e0b" : "#334155",
+                  color: capsOn ? "#0f172a" : "#f8fafc",
+                })}
+                {keyBtn("Space", onSpace, { flex: 2.6, fontSize: 16 })}
+                {keyBtn("⌫", onBack, { flex: 1.2, fontSize: 20 })}
+                {keyBtn("Done", onClose, { flex: 1.4, fontSize: 16, background: "#16a34a" })}
               </div>
             </>
           )}
-        </div>
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return body;
+  return createPortal(body, document.body);
 }
+
 
 function Modal({
   title,

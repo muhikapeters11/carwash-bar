@@ -6175,3 +6175,19 @@ html, body, #root {
 .osk-overlay-popup .osk-pad-key.osk-back {
   font-size: 28px !important;
 }
+
+.pay-methods-three {
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 8px !important;
+}
+
+
+/* v2.5.0 — keyboard is portaled; only layout helpers remain */
+.login-wrap.login-with-kb {
+  padding-bottom: min(42vh, 340px) !important;
+  overflow-y: auto !important;
+}
+.login-kb-dock,
+.full-osk-dock {
+  display: none !important; /* real keyboard is fixed via portal */
+}
