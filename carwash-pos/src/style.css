@@ -5475,3 +5475,538 @@ textarea:focus,
   background: #f59e0b !important;
   color: #172033 !important;
 }
+
+/* ===== Large touch-screen OSK (v2.3.7) ===== */
+/* QWERTY: edge-to-edge full screen width */
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay,
+.modal .osk-overlay,
+.osk-overlay {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box !important;
+}
+.login-kb-dock .osk-wrap,
+.full-osk-dock .osk-wrap,
+.modal .osk-wrap,
+.osk-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 8px 6px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box !important;
+}
+.osk-alpha-mode,
+.osk:not(.osk-pad-mode) {
+  width: 100% !important;
+  max-width: 100% !important;
+  gap: 6px !important;
+}
+.osk-alpha-row,
+.osk-num-strip,
+.osk-num-strip-small,
+.osk-bottom-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  gap: 5px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  box-sizing: border-box !important;
+}
+/* Large touch letter keys */
+.osk-key.osk-alpha {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 58px !important;
+  height: 58px !important;
+  max-height: none !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+}
+.osk-num-strip-small .osk-num-strip-key,
+.osk-num-strip .osk-key {
+  min-height: 48px !important;
+  height: 48px !important;
+  max-height: none !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+.osk-bottom-row .osk-key {
+  min-height: 56px !important;
+  height: 56px !important;
+  max-height: none !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+.osk-wide {
+  flex: 2.8 1 0 !important;
+}
+.osk-done {
+  flex: 1.8 1 0 !important;
+  font-size: 18px !important;
+}
+
+/* Number pad: larger keys + bigger fonts (still centered, not edge-stretched) */
+.osk-pad-mode {
+  max-width: 340px !important;
+  width: 340px !important;
+  margin: 10px auto !important;
+  gap: 12px !important;
+  padding: 8px !important;
+}
+.osk-pad-row {
+  gap: 12px !important;
+  justify-content: center !important;
+}
+.osk-pad-key {
+  flex: 0 0 auto !important;
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
+  height: 72px !important;
+  min-height: 72px !important;
+  max-height: 72px !important;
+  font-size: 32px !important;
+  font-weight: 700 !important;
+  border-radius: 16px !important;
+}
+.osk-pad-row .osk-done {
+  width: 96px !important;
+  min-width: 96px !important;
+  height: 72px !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+.osk-pad-row .osk-back {
+  width: 96px !important;
+  min-width: 96px !important;
+  height: 72px !important;
+  font-size: 26px !important;
+}
+
+/* Tall screens: even larger letter keys */
+@media (min-height: 700px) {
+  .osk-key.osk-alpha {
+    min-height: 64px !important;
+    height: 64px !important;
+    font-size: 24px !important;
+  }
+  .osk-num-strip-small .osk-num-strip-key {
+    min-height: 52px !important;
+    height: 52px !important;
+    font-size: 22px !important;
+  }
+}
+@media (min-width: 900px) {
+  .osk-key.osk-alpha {
+    min-height: 68px !important;
+    height: 68px !important;
+    font-size: 26px !important;
+  }
+  .osk-pad-mode {
+    max-width: 380px !important;
+    width: 380px !important;
+  }
+  .osk-pad-key,
+  .osk-pad-row .osk-done,
+  .osk-pad-row .osk-back {
+    width: 108px !important;
+    min-width: 108px !important;
+    max-width: 108px !important;
+    height: 80px !important;
+    min-height: 80px !important;
+    font-size: 36px !important;
+  }
+  .osk-pad-row .osk-done {
+    font-size: 22px !important;
+  }
+}
+/* Allow keyboard dock more vertical room on login */
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* ===== Professional OSK finish (v2.3.8) ===== */
+.osk-overlay {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.2) !important;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(8px);
+}
+.osk-wrap {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.osk-key,
+.osk-key.osk-alpha,
+.osk-pad-key,
+.osk-num-strip-key {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 2px 4px rgba(0, 0, 0, 0.25) !important;
+  border-radius: 10px !important;
+  font-family: "DM Sans", system-ui, sans-serif !important;
+  letter-spacing: 0.02em !important;
+  transition: background 0.08s ease, transform 0.08s ease, box-shadow 0.08s ease !important;
+}
+.osk-key:hover,
+.osk-key.osk-alpha:hover,
+.osk-pad-key:hover {
+  background: linear-gradient(180deg, #3f4f63 0%, #243044 100%) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+.osk-key:active,
+.osk-key.osk-alpha:active,
+.osk-pad-key:active,
+.osk-num-strip-key:active {
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%) !important;
+  color: #0f172a !important;
+  border-color: #fbbf24 !important;
+  transform: scale(0.97) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) inset !important;
+}
+.osk-wide {
+  background: linear-gradient(180deg, #3b4a5e 0%, #243041 100%) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+}
+.osk-done,
+.osk-pad-row .osk-done {
+  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+}
+.osk-done:active,
+.osk-pad-row .osk-done:active {
+  background: linear-gradient(180deg, #16a34a 0%, #14532d 100%) !important;
+  color: #fff !important;
+}
+.osk-back,
+.osk-pad-row .osk-back {
+  background: linear-gradient(180deg, #475569 0%, #334155 100%) !important;
+}
+.osk-caps {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+}
+.osk-caps.active {
+  background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%) !important;
+  color: #0f172a !important;
+  border-color: #fbbf24 !important;
+}
+.osk-at,
+.osk-dot {
+  font-weight: 700 !important;
+}
+/* Number strip above QWERTY — subtle secondary keys */
+.osk-num-strip-small .osk-num-strip-key {
+  background: linear-gradient(180deg, #2a3648 0%, #1a2433 100%) !important;
+  border-radius: 8px !important;
+  color: #cbd5e1 !important;
+}
+/* Number pad container — card-like professional block */
+.osk-pad-mode {
+  background: rgba(15, 23, 42, 0.55) !important;
+  border: 1px solid rgba(148, 163, 184, 0.15) !important;
+  border-radius: 20px !important;
+  padding: 14px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+.osk-pad-key {
+  border-radius: 14px !important;
+}
+/* Login dock blends with app chrome */
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay {
+  border-top: 1px solid rgba(245, 158, 11, 0.2) !important;
+}
+html.dark .osk-key,
+html.dark .osk-key.osk-alpha,
+html.dark .osk-pad-key {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%) !important;
+}
+
+/* ===== True full-screen keyboard (v2.3.9) ===== */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Fixed full-viewport keyboard dock */
+.login-kb-dock,
+.full-osk-dock {
+  position: relative !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+  left: 0 !important;
+  right: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay,
+.modal .full-osk-dock .osk-overlay,
+.modal .osk-overlay {
+  position: relative !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin: 0 !important;
+  padding: 10px 8px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box !important;
+  inset: auto !important;
+  height: auto !important;
+  display: block !important;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+}
+
+.login-kb-dock .osk-wrap,
+.full-osk-dock .osk-wrap,
+.modal .osk-wrap,
+.osk-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.osk-alpha-mode,
+.osk:not(.osk-pad-mode) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.osk-alpha-row,
+.osk-num-strip-small,
+.osk-num-strip,
+.osk-bottom-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  box-sizing: border-box !important;
+}
+
+/* Letter keys fill full width */
+.osk-key.osk-alpha {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 60px !important;
+  height: 60px !important;
+  font-size: 22px !important;
+}
+
+/* When keyboard open on login: shell uses full viewport */
+.login-wrap.login-with-kb {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.login-shell {
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+
+/* Modal: keyboard breaks out to full screen width at bottom */
+.modal:has(.full-osk-dock),
+.modal:has(.osk-alpha-mode) {
+  max-width: 100vw !important;
+  width: 100vw !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+.modal-backdrop:has(.full-osk-dock) .modal,
+.modal-backdrop:has(.osk-alpha-mode) .modal {
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+
+/* Number pad stays compact/centered (not full-bleed) */
+.osk-pad-mode {
+  width: 340px !important;
+  max-width: 90vw !important;
+  margin: 12px auto !important;
+}
+
+/* ===== Cart: pay buttons always visible + 5 lines + big +/- (v2.4.0) ===== */
+.sell-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+  /* Fit in viewport under topbar so cart footer stays on first screen */
+  height: calc(100dvh - 120px) !important;
+  max-height: calc(100dvh - 120px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.sell-layout > section:first-child {
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+.cart-panel,
+.cart-panel-v2 {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  position: sticky !important;
+  top: 0 !important;
+  align-self: stretch !important;
+}
+.cart-head,
+.held-sales-bar {
+  flex: 0 0 auto !important;
+}
+/* Line list grows; keeps ~5 compact rows visible above footer */
+.cart-lines {
+  flex: 1 1 auto !important;
+  min-height: 220px !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 6px 8px !important;
+  gap: 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.cart-line,
+.cart-line-v2 {
+  flex: 0 0 auto !important;
+  min-height: 52px !important;
+  max-height: 64px !important;
+  padding: 6px 8px !important;
+  gap: 6px !important;
+}
+.cart-line-name,
+.cart-line-info b {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+/* Footer with Cash / M-Pesa / Card / Credit always on screen */
+.cart-footer,
+.cart-footer-v2 {
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  padding: 10px 12px 12px !important;
+  border-top: 1px solid #e7eaf1 !important;
+  background: inherit !important;
+  box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.06) !important;
+}
+.cart-total-block {
+  margin-bottom: 6px !important;
+}
+.cart-total-amount {
+  font-size: 22px !important;
+}
+.cart-pay-label {
+  margin: 4px 0 6px !important;
+  font-size: 11px !important;
+}
+.pay-methods,
+.pay-methods-v2 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+}
+.pay-btn,
+.pay-btn-v2 {
+  min-height: 44px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  padding: 8px 6px !important;
+}
+.sell-actions-row {
+  margin-top: 8px !important;
+}
+.sell-actions-row .hold-btn {
+  min-height: 40px !important;
+  width: 100% !important;
+}
+
+/* Bigger +/- for touch */
+.qty-control,
+.qty-control-lg {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.qty-control .qty-btn,
+.qty-control-lg .qty-btn,
+.qty-btn {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.qty-control .qty-val,
+.qty-control-lg .qty-val,
+.qty-val {
+  min-width: 28px !important;
+  text-align: center !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+.cart-remove-btn {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border-radius: 10px !important;
+}
+
+@media (max-width: 900px) {
+  .sell-layout {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .cart-panel,
+  .cart-panel-v2 {
+    position: relative !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  .cart-lines {
+    min-height: 180px !important;
+    max-height: 280px !important;
+  }
+  .cart-footer,
+  .cart-footer-v2 {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 5 !important;
+  }
+}
