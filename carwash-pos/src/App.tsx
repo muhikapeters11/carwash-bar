@@ -7139,7 +7139,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               </button>
               <button className="primary" disabled={busy}>Create user</button>
             </div>
-          </form>
+          </div>
         </Modal>
       )}
       {showSupplier && (
