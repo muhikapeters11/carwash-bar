@@ -1591,16 +1591,36 @@ export default function App() {
     }
   }
 
+  function scrollActiveFieldIntoView(target?: string | null) {
+    const t = target ?? kbTarget;
+    const idMap: Record<string, string> = {
+      loginEmail: "login-email-input",
+      loginPassword: "login-password-input",
+      creditor: "creditor-name-input",
+      pinPrompt: "pin-prompt-input",
+      createPin: "create-pin-input",
+    };
+    const id = t ? idMap[t] : undefined;
+    const el =
+      (id ? document.getElementById(id) : null) ||
+      (document.activeElement instanceof HTMLElement ? document.activeElement : null) ||
+      document.querySelector<HTMLElement>("[data-kb-active='1']");
+    if (!el) return;
+    try {
+      el.setAttribute("data-kb-active", "1");
+      el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
+    } catch {
+      /* */
+    }
+  }
+
   function openKb(target: string, mode: "alpha" | "numeric" | "alnum" = "alpha") {
-    // On mobile/touch phones use the native keyboard — do not open virtual OSK
     setKbTarget(target);
     setKbMode(mode);
     setShowAlphaKb(true);
-    setTimeout(() => {
-      document
-        .getElementById("osk-preview")
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 80);
+    // Keep the real text box in view (no separate "you are typing" bar)
+    setTimeout(() => scrollActiveFieldIntoView(target), 50);
+    setTimeout(() => scrollActiveFieldIntoView(target), 200);
   }
 
   function kbType(ch: string) {
@@ -1709,11 +1729,7 @@ export default function App() {
       default:
         break;
     }
-    requestAnimationFrame(() => {
-      document
-        .getElementById("osk-preview")
-        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    });
+    requestAnimationFrame(() => scrollActiveFieldIntoView());
   }
   function kbBack() {
     const cut = (s: string) => s.slice(0, -1);
@@ -6577,7 +6593,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 onFocus={() => openKb("prodName", "alpha")}
                 onClick={() => openKb("prodName", "alpha")}
-                placeholder="Tap for keyboard"
+                id="create-pin-input"
+                  placeholder="Tap for keyboard"
               />
             </label>
             <label>
@@ -7155,11 +7172,12 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
         >
           <div className="stack">
             <input
+              id="creditor-name-input"
               autoFocus
               value={creditor}
               onChange={(e) => setCreditor(e.target.value)}
-              onFocus={() => openKb("creditor", "alpha")}
-              onClick={() => openKb("creditor", "alpha")}
+              onFocus={() => openKb("creditor", "alnum")}
+              onClick={() => openKb("creditor", "alnum")}
               placeholder="Creditor name"
               className="creditor-display"
             />
@@ -7963,12 +7981,6 @@ function OnScreenKeyboard({
   return (
     <div className="osk-overlay" onMouseDown={(e) => e.stopPropagation()}>
       <div className="osk-wrap">
-        <div className="osk-preview" id="osk-preview" aria-live="polite">
-          <span className="osk-preview-label">You are typing</span>
-          <span className="osk-preview-value">
-            {value ? value : <span className="muted">…</span>}
-          </span>
-        </div>
         <div
           className={
             "osk" +
@@ -8015,22 +8027,28 @@ function OnScreenKeyboard({
             </>
           ) : (
             <>
-              {mode === "alnum" && (
-                <>
-                  <div className="osk-row osk-num-strip">
-                    {"1234567890".split("").map((k) => (
-                      <button
-                        type="button"
-                        key={k}
-                        className="osk-key"
-                        onClick={() => onKey(k)}
-                      >
-                        {k}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              {/* Small 1-9 strip above QWERTY (alpha + alnum) */}
+              <div className="osk-row osk-num-strip osk-num-strip-small">
+                {"123456789".split("").map((k) => (
+                  <button
+                    type="button"
+                    key={k}
+                    className="osk-key osk-num-strip-key"
+                    onClick={() => onKey(k)}
+                  >
+                    {k}
+                  </button>
+                ))}
+                {mode === "alnum" && (
+                  <button
+                    type="button"
+                    className="osk-key osk-num-strip-key"
+                    onClick={() => onKey("0")}
+                  >
+                    0
+                  </button>
+                )}
+              </div>
               {alphaRows.map((row, i) => (
                 <div className="osk-row osk-alpha-row" key={i}>
                   {row.map((k) => (

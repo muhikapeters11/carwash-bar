@@ -5239,3 +5239,239 @@ html.dark .osk-preview {
   margin-top: 6px !important;
   flex: 0 0 auto !important;
 }
+
+
+/* ===== Fit-to-screen OSK, no typing bar (v2.3.4) ===== */
+.osk-preview,
+.osk-preview-label,
+.osk-preview-value {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Keyboard scales to viewport width system-wide */
+.osk-overlay {
+  width: 100% !important;
+  max-width: 100vw !important;
+  box-sizing: border-box !important;
+}
+.osk-wrap {
+  width: 100% !important;
+  max-width: min(920px, 100vw) !important;
+  margin: 0 auto !important;
+  padding: 6px 4px env(safe-area-inset-bottom, 6px) !important;
+  box-sizing: border-box !important;
+}
+.osk,
+.osk-alpha-mode,
+.osk-pad-mode {
+  width: 100% !important;
+  gap: 4px !important;
+}
+.osk-row,
+.osk-alpha-row,
+.osk-num-strip,
+.osk-bottom-row,
+.osk-pad-row {
+  display: flex !important;
+  width: 100% !important;
+  flex-wrap: nowrap !important;
+  gap: 3px !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+.osk-key,
+.osk-key.osk-alpha,
+.osk-pad-key {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Number pad: fit entirely in first view (no scroll for keys) */
+.osk-pad-mode {
+  max-width: min(360px, 92vw) !important;
+  margin: 0 auto !important;
+  gap: 6px !important;
+}
+.osk-pad-row {
+  gap: 6px !important;
+}
+.osk-pad-key {
+  min-height: clamp(44px, 9vh, 64px) !important;
+  max-height: 64px !important;
+  font-size: clamp(18px, 3.5vh, 26px) !important;
+  border-radius: 10px !important;
+}
+
+/* QWERTY scales with screen height so all rows stay on screen */
+.osk-key.osk-alpha {
+  min-height: clamp(36px, 6.2vh, 52px) !important;
+  max-height: 52px !important;
+  font-size: clamp(14px, 2.4vh, 18px) !important;
+}
+.osk-num-strip .osk-key {
+  min-height: clamp(32px, 5.5vh, 44px) !important;
+  font-size: clamp(13px, 2.2vh, 16px) !important;
+}
+.osk-bottom-row .osk-key {
+  min-height: clamp(36px, 6.2vh, 50px) !important;
+}
+
+/* Login / credit docks: fixed to bottom, content scrolls above */
+.login-wrap.login-with-kb {
+  overflow: hidden !important;
+}
+.login-shell {
+  height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.login-shell .login-card-password {
+  flex: 1 1 auto !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 8px !important;
+}
+.login-kb-dock,
+.full-osk-dock {
+  flex: 0 0 auto !important;
+  margin-top: 0 !important;
+  width: 100% !important;
+}
+.login-kb-dock .osk-overlay,
+.full-osk-dock .osk-overlay {
+  max-height: min(46dvh, 360px) !important;
+  overflow: hidden !important;
+  padding: 4px 2px 6px !important;
+}
+.modal:has(.full-osk-dock),
+.modal:has(.osk-pad-mode),
+.modal:has(.osk-alpha-mode) {
+  max-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.modal:has(.full-osk-dock) .stack,
+.modal:has(.osk-pad-mode) .stack,
+.modal:has(.osk-alpha-mode) .stack {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding-bottom: 4px !important;
+}
+.modal .osk-overlay {
+  max-height: min(48dvh, 380px) !important;
+  overflow: hidden !important;
+}
+
+/* Keep focused field clear of keyboard */
+input:focus,
+textarea:focus,
+[data-kb-active="1"] {
+  scroll-margin-bottom: min(50dvh, 380px);
+  scroll-margin-top: 12px;
+}
+
+/* ===== Realistic compact number pad (v2.3.5) ===== */
+.osk-pad-mode {
+  max-width: 280px !important;
+  width: 280px !important;
+  margin: 8px auto !important;
+  gap: 8px !important;
+  padding: 4px !important;
+}
+.osk-pad-row {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+.osk-pad-key {
+  flex: 0 0 auto !important;
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+}
+.osk-pad-row .osk-done {
+  width: 72px !important;
+  min-width: 72px !important;
+  background: #16a34a !important;
+  font-size: 15px !important;
+}
+.osk-pad-row .osk-back {
+  width: 72px !important;
+  min-width: 72px !important;
+  font-size: 18px !important;
+}
+/* Keep pad centered inside docks — not stretched edge-to-edge */
+.login-kb-dock .osk-pad-mode,
+.full-osk-dock .osk-pad-mode,
+.modal .osk-pad-mode {
+  max-width: 280px !important;
+  width: 280px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.login-kb-dock .osk-pad-key,
+.full-osk-dock .osk-pad-key,
+.modal .osk-pad-key {
+  flex: 0 0 72px !important;
+  width: 72px !important;
+  min-width: 72px !important;
+}
+@media (max-width: 360px) {
+  .osk-pad-mode {
+    max-width: 250px !important;
+    width: 250px !important;
+  }
+  .osk-pad-key,
+  .osk-pad-row .osk-done,
+  .osk-pad-row .osk-back {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+    height: 48px !important;
+  }
+}
+
+
+/* Small 1-9 strip above QWERTY */
+.osk-num-strip-small {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  gap: 3px !important;
+  justify-content: center !important;
+  margin: 0 0 4px 0 !important;
+  flex-wrap: nowrap !important;
+}
+.osk-num-strip-small .osk-num-strip-key {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 32px !important;
+  max-height: 36px !important;
+  height: 34px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  background: #2a3548 !important;
+  color: #e8edf7 !important;
+}
+.osk-num-strip-small .osk-num-strip-key:active {
+  background: #f59e0b !important;
+  color: #172033 !important;
+}
