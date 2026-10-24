@@ -6010,3 +6010,173 @@ html, body, #root {
     z-index: 5 !important;
   }
 }
+
+
+/* ===== v2.4.1: cart + popup numpad + big type ===== */
+
+/* Cart: only two pay buttons, professional rows */
+.pay-methods-two {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+}
+.pay-methods-two .pay-btn {
+  min-height: 48px !important;
+  font-size: 16px !important;
+}
+.cart-lines {
+  gap: 8px !important;
+}
+.cart-line,
+.cart-line-v2 {
+  min-height: 56px !important;
+  max-height: none !important;
+  height: auto !important;
+  padding: 8px 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  overflow: visible !important;
+  flex-wrap: nowrap !important;
+  border-radius: 12px !important;
+  background: rgba(15, 23, 42, 0.03) !important;
+}
+.cart-line-info {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+.cart-line-actions {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.qty-btn,
+.qty-control .qty-btn,
+.qty-control-lg .qty-btn {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+}
+
+/* QWERTY bigger fonts */
+.osk-key.osk-alpha {
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  min-height: 62px !important;
+  height: 62px !important;
+}
+.osk-num-strip-small .osk-num-strip-key {
+  font-size: 22px !important;
+  min-height: 48px !important;
+  height: 48px !important;
+}
+.osk-bottom-row .osk-key {
+  font-size: 18px !important;
+  min-height: 56px !important;
+}
+
+/* Number pad: POPUP overlay (not trapped in dialog) */
+.osk-overlay-popup {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100dvh !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+}
+.osk-wrap-popup {
+  width: min(400px, 94vw) !important;
+  max-width: 400px !important;
+  margin: 0 auto !important;
+  padding: 16px !important;
+  border-radius: 20px !important;
+  background: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5) !important;
+}
+.osk-popup-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.osk-popup-title {
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 15px;
+}
+.osk-popup-close {
+  border: 0;
+  background: #334155;
+  color: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.osk-overlay-popup .osk-pad-mode {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  gap: 12px !important;
+}
+.osk-overlay-popup .osk-pad-row {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+/* Explicit digit visibility — large touch targets */
+.osk-overlay-popup .osk-pad-key {
+  flex: 0 0 auto !important;
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
+  height: 76px !important;
+  min-height: 76px !important;
+  max-height: 76px !important;
+  font-size: 34px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  color: #f8fafc !important;
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%) !important;
+  border: 1px solid rgba(148, 163, 184, 0.3) !important;
+  border-radius: 16px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  overflow: visible !important;
+  text-indent: 0 !important;
+  font-family: "DM Sans", system-ui, sans-serif !important;
+}
+.osk-overlay-popup .osk-pad-key.osk-done {
+  background: linear-gradient(180deg, #22c55e 0%, #15803d 100%) !important;
+  color: #fff !important;
+  font-size: 20px !important;
+}
+.osk-overlay-popup .osk-pad-key.osk-back {
+  font-size: 28px !important;
+}
+
+.pay-methods-three {
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 8px !important;
+}

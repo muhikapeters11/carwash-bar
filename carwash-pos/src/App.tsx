@@ -5024,27 +5024,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   </button>
                 )}
               </div>
-              {heldSales.length > 0 && (
-                <div className="held-sales-bar">
-                  <span className="held-label">Held</span>
-                  {heldSales.map((h, i) => (
-                    <button
-                      className="held-chip"
-                      key={i}
-                      type="button"
-                      onClick={() => {
-                        setCart(h);
-                        setHeldSales((old) => old.filter((_, j) => j !== i));
-                      }}
-                    >
-                      #{i + 1}{" "}
-                      {money(
-                        h.reduce((n, x) => n + x.qty * x.product.sell_price, 0),
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+              
               <div className="cart-lines">
                 {cart.map((x) => (
                   <div className="cart-line cart-line-v2" key={x.product.id}>
@@ -5110,8 +5090,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   <b className="cart-total-amount">{money(total)}</b>
                 </div>
                 <div className="field-label cart-pay-label">Pay with</div>
-                <div className="pay-methods pay-methods-v2">
-                  {(["cash", "mpesa", "card", "credit"] as const).map((m) => (
+                <div className="pay-methods pay-methods-v2 pay-methods-three">
+                  {(["cash", "mpesa", "credit"] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -5123,31 +5103,15 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                         setPayment(m);
                         if (m === "credit") {
                           setShowCreditorModal(true);
-                          openKb("creditor", "alpha");
+                          openKb("creditor", "alnum");
                         } else {
-                          checkout(m);
+                          void checkout(m);
                         }
                       }}
                     >
-                      {m === "mpesa"
-                        ? "M-Pesa"
-                        : m.charAt(0).toUpperCase() + m.slice(1)}
+                      {m === "mpesa" ? "M-Pesa" : m.charAt(0).toUpperCase() + m.slice(1)}
                     </button>
                   ))}
-                </div>
-                <div className="sell-actions-row">
-                  <button
-                    className="secondary hold-btn"
-                    type="button"
-                    disabled={!cart.length}
-                    onClick={() => {
-                      setHeldSales((old) => [...old, cart]);
-                      setCart([]);
-                      flash("Sale held — tap Held chip above to resume");
-                    }}
-                  >
-                    Hold sale
-                  </button>
                 </div>
               </div>
             </section>
@@ -7978,50 +7942,55 @@ function OnScreenKeyboard({
     ["7", "8", "9"],
     ["⌫", "0", "✓"],
   ];
+  const isPad = mode === "numeric";
   return (
-    <div className="osk-overlay" onMouseDown={(e) => e.stopPropagation()}>
-      <div className="osk-wrap">
+    <div
+      className={"osk-overlay" + (isPad ? " osk-overlay-popup" : "")}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className={"osk-wrap" + (isPad ? " osk-wrap-popup" : "")}>
+        {isPad && (
+          <div className="osk-popup-toolbar">
+            <span className="osk-popup-title">Number pad</span>
+            <button type="button" className="osk-popup-close" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        )}
         <div
           className={
             "osk" +
-            (mode === "numeric" ? " osk-pad-mode" : " osk-alpha-mode") +
+            (isPad ? " osk-pad-mode" : " osk-alpha-mode") +
             (capsOn ? " osk-caps-on" : " osk-caps-off")
           }
         >
-          {mode === "numeric" ? (
+          {isPad ? (
             <>
-              {padRows.map((row, i) => (
-                <div className="osk-row osk-pad-row" key={i}>
-                  {row.map((k) =>
-                    k === "⌫" ? (
-                      <button
-                        type="button"
-                        key={k}
-                        className="osk-key osk-pad-key osk-back"
-                        onClick={onBack}
-                      >
-                        ⌫
-                      </button>
-                    ) : k === "✓" ? (
-                      <button
-                        type="button"
-                        key={k}
-                        className="osk-key osk-pad-key osk-done"
-                        onClick={onClose}
-                      >
-                        Done
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        key={k}
-                        className="osk-key osk-pad-key"
-                        onClick={() => onKey(k)}
-                      >
-                        {k}
-                      </button>
-                    ),
-                  )}
+              {[
+                ["1", "2", "3"],
+                ["4", "5", "6"],
+                ["7", "8", "9"],
+                ["⌫", "0", "✓"],
+              ].map((row, i) => (
+                <div className="osk-row osk-pad-row" key={"pad-" + i}>
+                  {row.map((k) => (
+                    <button
+                      type="button"
+                      key={k + "-" + i}
+                      className={
+                        "osk-key osk-pad-key" +
+                        (k === "⌫" ? " osk-back" : "") +
+                        (k === "✓" ? " osk-done" : "")
+                      }
+                      onClick={() => {
+                        if (k === "⌫") onBack();
+                        else if (k === "✓") onClose();
+                        else onKey(k);
+                      }}
+                    >
+                      {k === "✓" ? "Done" : k}
+                    </button>
+                  ))}
                 </div>
               ))}
             </>
