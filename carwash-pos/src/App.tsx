@@ -483,6 +483,9 @@ export default function App() {
     [payment, setPayment] = useState("cash"),
     [creditor, setCreditor] = useState(""),
     [busy, setBusy] = useState(false),
+    [selling, setSelling] = useState(false),
+    [receiving, setReceiving] = useState(false),
+    [expenseBusy, setExpenseBusy] = useState(false),
     [heldSales, setHeldSales] = useState<Line[][]>([]),
     [receipt, setReceipt] = useState<any>(null),
     [showExpense, setShowExpense] = useState(false),
@@ -576,7 +579,8 @@ export default function App() {
     const scheduleRefresh = () => {
       clearTimeout(debounce);
       debounce = setTimeout(() => {
-        refreshAll();
+        // Silent — must not freeze Sell / Receive / Expenses during background sync
+        void refreshAll({ silent: true });
       }, 400);
     };
     let channel = supabase.channel("bar-pos-live");
@@ -1155,9 +1159,10 @@ export default function App() {
     }
   }
 
-  async function refreshAll() {
+  async function refreshAll(opts?: { silent?: boolean }) {
     if (!supabase) return;
-    setLoading(true);
+    const silent = !!opts?.silent;
+    if (!silent) setLoading(true);
     setError("");
     const [p, s, si, ex, cp, act, st, pr, sup, sr, sm, notif] = await Promise.all([
       supabase
@@ -1258,7 +1263,7 @@ export default function App() {
       const cachedSet = loadCachedSettings();
       if (cachedSet) setSettings(cachedSet);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }
   async function finishLogin(session: any, opts?: { password?: string; pin?: string }) {
     if (!session) return;
@@ -2249,7 +2254,7 @@ export default function App() {
     const supplier = (receiveSupplier || "").trim() || null;
     const receiptNo = (receiveReceiptNo || "").trim() || null;
     const note = (receiveNote || "Stock received").trim() || "Stock received";
-    setBusy(true);
+    setReceiving(true);
     setError("");
     // Optimistic stock
     setProducts((prev) => {
@@ -2297,12 +2302,12 @@ export default function App() {
       }
       flash("Stock received offline — will sync when online");
       requestBackgroundSync("barpos-sync");
-      setBusy(false);
+      setReceiving(false);
       return;
     }
 
     flash("Stock received");
-    setBusy(false);
+    setReceiving(false);
     const { error } = await supabase.rpc("receive_stock_details", {
       p_product_id: receiveProduct,
       p_quantity: addQty,
@@ -2852,6 +2857,12 @@ export default function App() {
         /* */
       }
     } finally {
+      // Soft product refresh only — do not block the till
+      try {
+        await refreshProductsOnly();
+      } catch {
+        /* ignore */
+      }
       setSyncingQueue(false);
       syncLockRef.current = false;
     }
@@ -2866,7 +2877,7 @@ export default function App() {
       openKb("creditor", "alpha");
       return;
     }
-    setBusy(true);
+    setSelling(true);
     setError("");
     const snapshot = cart.map((x) => ({ ...x }));
     const payTotal = snapshot.reduce(
@@ -2886,7 +2897,7 @@ export default function App() {
         const need = Math.max(1, Math.round(Number(line.qty) || 0));
         if (settings.block_sale_when_out !== false && p && Number(p.stock_qty) < need) {
           setError(`Insufficient stock for ${line.product.name} (have ${p.stock_qty})`);
-          setBusy(false);
+          setSelling(false);
           return;
         }
       }
@@ -2959,7 +2970,7 @@ export default function App() {
       setPayment("cash");
       flash("Sale saved offline — will sync when internet returns");
       requestBackgroundSync("barpos-sync");
-      setBusy(false);
+      setSelling(false);
       return;
     }
 
@@ -3034,7 +3045,7 @@ export default function App() {
         setPayment("cash");
         flash("Sale saved locally — will sync when connection is stable");
         requestBackgroundSync("barpos-sync");
-        setBusy(false);
+        setSelling(false);
         return;
       }
       if (/stock changed on another till|insufficient stock/i.test(msg)) {
@@ -3070,7 +3081,7 @@ export default function App() {
       setCreditor("");
       setPayment("cash");
       flash("Sale completed");
-      setBusy(false);
+      setSelling(false);
       // Background light sync — does not block the till
       void (async () => {
         try {
@@ -3086,7 +3097,7 @@ export default function App() {
       })();
       return;
     }
-    setBusy(false);
+    setSelling(false);
   }
 
   function shareReceiptWhatsApp(r: any) {
@@ -3118,7 +3129,7 @@ export default function App() {
       setError("Enter a description and a valid amount");
       return;
     }
-    setBusy(true);
+    setExpenseBusy(true);
     const { error } = await supabase
       .from("expenses")
       .insert({
@@ -3134,7 +3145,7 @@ export default function App() {
       await supabase.rpc("log_activity", { p_action: "expense_added", p_details: desc });
       await refreshAll();
     }
-    setBusy(false);
+    setExpenseBusy(false);
   }
 
 
@@ -3297,7 +3308,7 @@ export default function App() {
 
   async function submitBatchReceive() {
     if (!supabase || !batchItems.length) return;
-    setBusy(true);
+    setReceiving(true);
     setError("");
     try {
       for (const row of batchItems) {
@@ -3334,7 +3345,7 @@ export default function App() {
     } catch (err: any) {
       setError(err.message || "Batch receive failed");
     }
-    setBusy(false);
+    setReceiving(false);
   }
 
 
@@ -5200,7 +5211,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                       className={
                         "pay-btn pay-btn-v2" + (payment === m ? " active" : "")
                       }
-                      disabled={!cart.length || busy}
+                      disabled={!cart.length || selling}
                       onClick={() => {
                         setPayment(m);
                         if (m === "credit") {
@@ -6943,10 +6954,10 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               <button
                 type="button"
                 className="primary"
-                disabled={busy || !batchItems.length}
+                disabled={receiving || !batchItems.length}
                 onClick={submitBatchReceive}
               >
-                {busy ? "Saving…" : "Receive all"}
+                {receiving ? "Saving…" : "Receive all"}
               </button>
             </div>
           </div>
@@ -7044,8 +7055,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               >
                 Cancel
               </button>
-              <button className="primary" disabled={busy || !receiveProduct}>
-                {busy ? "Saving…" : "Receive stock"}
+              <button className="primary" disabled={receiving || !receiveProduct}>
+                {receiving ? "Saving…" : "Receive stock"}
               </button>
             </div>
           </form>
@@ -7194,7 +7205,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               <button
                 type="button"
                 className="primary"
-                disabled={!creditor.trim() || busy}
+                disabled={!creditor.trim() || selling}
                 onClick={() => {
                   if (!creditor.trim()) {
                     setError("Enter the creditor name");
