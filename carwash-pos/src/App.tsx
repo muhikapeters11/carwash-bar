@@ -601,7 +601,13 @@ export default function App() {
         (payload) => {
           if (table === "admin_notifications" && payload.eventType === "INSERT") {
             if (profile?.role === "admin" && payload.new) {
-              setAdminNotifications((old) => [payload.new as any, ...old].slice(0, 50));
+              const row = payload.new as any;
+              if (row.read_at) return;
+              const dismissed = loadDismissedNotifIds();
+              if (dismissed.has(String(row.id))) return;
+              setAdminNotifications((old) =>
+                filterUnreadNotifs([row, ...(old || [])]).slice(0, 50),
+              );
             }
           }
           scheduleRefresh();
@@ -619,17 +625,58 @@ export default function App() {
     };
   }, [session, profile?.role]);
 
-  async function markNotificationsRead() {
-    if (!supabase || profile?.role !== "admin") return;
-    const hadUnread = adminNotifications.some((n) => !n.read_at);
-    if (!hadUnread) return;
+  function loadDismissedNotifIds(): Set<string> {
     try {
-      await supabase.rpc("mark_admin_notifications_read");
+      const raw = localStorage.getItem("barpos_dismissed_notifs");
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw) as string[];
+      return new Set(Array.isArray(arr) ? arr.map(String) : []);
     } catch {
-      /* still clear locally so UI does not keep showing them */
+      return new Set();
     }
-    // Once read, drop from the list — only new inserts appear again
-    setAdminNotifications((old) => old.filter((n) => !!n.read_at));
+  }
+
+  function saveDismissedNotifIds(ids: Set<string>) {
+    try {
+      // Keep last 500 ids so storage stays small
+      const list = Array.from(ids).slice(-500);
+      localStorage.setItem("barpos_dismissed_notifs", JSON.stringify(list));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function filterUnreadNotifs(list: any[]): any[] {
+    const dismissed = loadDismissedNotifIds();
+    return (list || []).filter((n) => {
+      if (!n || !n.id) return false;
+      if (n.read_at) return false;
+      if (dismissed.has(String(n.id))) return false;
+      return true;
+    });
+  }
+
+  async function markNotificationsRead() {
+    if (profile?.role !== "admin") return;
+    const unread = adminNotifications.filter((n) => !n.read_at);
+    if (!unread.length) return;
+    const dismissed = loadDismissedNotifIds();
+    for (const n of unread) {
+      if (n?.id) dismissed.add(String(n.id));
+    }
+    saveDismissedNotifIds(dismissed);
+    // Remove from UI immediately — never show as unread again on this device
+    setAdminNotifications((old) =>
+      (old || []).filter((n) => n.read_at || !dismissed.has(String(n.id))),
+    );
+    // Also mark in cloud when online
+    if (supabase) {
+      try {
+        await supabase.rpc("mark_admin_notifications_read");
+      } catch {
+        /* offline / RPC missing — local dismiss still sticks */
+      }
+    }
   }
 
 // Auto log out after idle (minutes from settings; default 5). Returns to login page.
@@ -734,10 +781,26 @@ export default function App() {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
-  // Touch-first POS chrome (hide cursor, faster taps)
+  // Cursor: show on mouse/laptop; touch-only mode when primary input is touch
   useEffect(() => {
-    document.documentElement.classList.add("pos-touch");
-    return () => document.documentElement.classList.remove("pos-touch");
+    const touchMq = window.matchMedia("(hover: none) and (pointer: coarse)");
+    const narrowMq = window.matchMedia("(max-width: 768px)");
+    const apply = () => {
+      const isTouch = touchMq.matches;
+      const isPhone = narrowMq.matches || /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent);
+      document.documentElement.classList.toggle("pos-touch", isTouch && !window.matchMedia("(hover: hover)").matches);
+      document.documentElement.classList.toggle("pos-phone", isPhone);
+      // Phones / small screens: native OS keyboard only
+      setUseNativeKb(isPhone || touchMq.matches && narrowMq.matches);
+    };
+    apply();
+    touchMq.addEventListener?.("change", apply);
+    narrowMq.addEventListener?.("change", apply);
+    return () => {
+      touchMq.removeEventListener?.("change", apply);
+      narrowMq.removeEventListener?.("change", apply);
+      document.documentElement.classList.remove("pos-touch", "pos-phone");
+    };
   }, []);
 
   // Online / offline detection + BACKGROUND auto-sync (no reload required)
@@ -1036,7 +1099,7 @@ export default function App() {
       if (!sup.error && sup.data) setSuppliers(sup.data || []);
       if (!sr.error && sr.data) setStockReceipts(sr.data || []);
       if (!sm.error && sm.data) setStockMovements(sm.data || []);
-      if (!notif.error && notif.data) setAdminNotifications((notif.data || []).filter((n: any) => !n.read_at));
+      if (!notif.error && notif.data) setAdminNotifications(filterUnreadNotifs(notif.data || []));
     } catch {
       /* non-blocking */
     }
@@ -1170,7 +1233,7 @@ export default function App() {
     if (!sup.error) setSuppliers(sup.data || []);
     if (!sr.error) setStockReceipts(sr.data || []);
     if (!sm.error) setStockMovements(sm.data || []);
-    if (!notif.error) setAdminNotifications((notif.data || []).filter((n: any) => !n.read_at));
+    if (!notif.error) setAdminNotifications(filterUnreadNotifs(notif.data || []));
     if (st.data) {
       const nextSettings = {
         ...st.data,
@@ -1627,10 +1690,19 @@ export default function App() {
   }
 
   function openKb(target: string, mode: "alpha" | "numeric" | "alnum" = "alpha") {
+    // Mobile phones: use the device keyboard — do not open in-app OSK
+    const phone =
+      useNativeKb ||
+      window.matchMedia("(max-width: 768px)").matches ||
+      /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent || "");
+    if (phone) {
+      setShowAlphaKb(false);
+      setKbTarget(null);
+      return;
+    }
     setKbTarget(target);
     setKbMode(mode);
     setShowAlphaKb(true);
-    // Keep the real text box in view (no separate "you are typing" bar)
     setTimeout(() => scrollActiveFieldIntoView(target), 50);
     setTimeout(() => scrollActiveFieldIntoView(target), 200);
   }

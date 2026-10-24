@@ -6234,3 +6234,100 @@ html.pos-touch input, html.pos-touch textarea {
 .pay-btn:active, .qty-btn:active {
   transform: scale(0.96) !important;
 }
+
+
+/* ===== v2.5.4 notifications permanent dismiss + mobile ===== */
+/* Cursor hidden ONLY on pure touch devices */
+html.pos-touch, html.pos-touch * {
+  cursor: none !important;
+}
+html:not(.pos-touch), html:not(.pos-touch) * {
+  cursor: auto;
+}
+html:not(.pos-touch) button,
+html:not(.pos-touch) a,
+html:not(.pos-touch) .nav-item,
+html:not(.pos-touch) .product-card {
+  cursor: pointer;
+}
+
+/* Phone layout */
+@media (max-width: 768px) {
+  .app-shell {
+    flex-direction: column !important;
+    min-height: 100dvh !important;
+  }
+  .sidebar {
+    width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    padding: 8px !important;
+    gap: 4px !important;
+    max-height: none !important;
+  }
+  .sidebar .logo {
+    width: 100%;
+    padding: 4px 8px 8px !important;
+  }
+  .sidebar .nav-item {
+    flex: 1 1 auto !important;
+    min-width: 44px !important;
+    justify-content: center !important;
+    padding: 10px 8px !important;
+    font-size: 11px !important;
+  }
+  .side-bottom {
+    width: 100%;
+    margin-top: 0 !important;
+  }
+  .main {
+    padding: 8px 10px 16px !important;
+    width: 100% !important;
+  }
+  .topbar {
+    height: auto !important;
+    min-height: 56px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+  }
+  .sell-layout {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .cart-panel, .cart-panel-v2 {
+    order: -1 !important;
+    position: relative !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  .cart-lines {
+    max-height: 220px !important;
+    min-height: 120px !important;
+  }
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .login-card, .login-card-password {
+    max-width: 100% !important;
+    margin: 12px !important;
+    width: calc(100% - 24px) !important;
+  }
+  .modal {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 92dvh !important;
+  }
+  /* On phones virtual dock hidden — native keyboard used */
+  html.pos-phone .login-kb-dock,
+  html.pos-phone .full-osk-dock,
+  html.pos-phone .pos-kb-root {
+    display: none !important;
+  }
+}
