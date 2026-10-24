@@ -6191,3 +6191,46 @@ html, body, #root {
 .full-osk-dock {
   display: none !important; /* real keyboard is fixed via portal */
 }
+
+
+/* ===== v2.5.3 touch POS + cart 4 lines + sell speed ===== */
+html, body, #root, button, a, .nav-item, .product-card, .pay-btn, .qty-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* Hide system cursor for kiosk/touch feel (desktop still works with touch) */
+html.pos-touch, html.pos-touch * {
+  cursor: none !important;
+}
+html.pos-touch input, html.pos-touch textarea {
+  cursor: text !important;
+}
+
+/* Cart: ~4 product rows visible, then scroll */
+.cart-lines {
+  min-height: calc(4 * 64px) !important;
+  max-height: calc(4 * 68px) !important;
+  overflow-y: auto !important;
+}
+.cart-line, .cart-line-v2 {
+  min-height: 60px !important;
+  max-height: 68px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Sell: snappy taps */
+.product-card.sell-card {
+  transition: transform 0.06s ease, box-shadow 0.06s ease !important;
+}
+.product-card.sell-card:active {
+  transform: scale(0.97) !important;
+}
+.pay-btn:active, .qty-btn:active {
+  transform: scale(0.96) !important;
+}

@@ -734,6 +734,12 @@ export default function App() {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
+  // Touch-first POS chrome (hide cursor, faster taps)
+  useEffect(() => {
+    document.documentElement.classList.add("pos-touch");
+    return () => document.documentElement.classList.remove("pos-touch");
+  }, []);
+
   // Online / offline detection + BACKGROUND auto-sync (no reload required)
   useEffect(() => {
     let cancelled = false;
@@ -7096,48 +7102,40 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               onChange={(e) => setCreditor(e.target.value)}
               onFocus={() => openKb("creditor", "alnum")}
               onClick={() => openKb("creditor", "alnum")}
-              placeholder="Creditor name"
+              placeholder="Customer / creditor name"
               className="creditor-display"
             />
-
-            <label>
-              Role
-              <select
-                value={userForm.role}
-                onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-              >
-                <option value="cashier">Cashier</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-            {userForm.role === "cashier" && (
-              <div>
-                <div className="field-label" style={{ marginBottom: 8 }}>Permissions (tabs)</div>
-                <div className="perm-grid">
-                  {ALL_TABS.map((t) => (
-                    <label key={t} className="perm-check">
-                      <input
-                        type="checkbox"
-                        checked={userForm.allowed_tabs.includes(t)}
-                        onChange={(e) => {
-                          const next = e.target.checked
-                            ? [...userForm.allowed_tabs, t]
-                            : userForm.allowed_tabs.filter((x) => x !== t);
-                          setUserForm({ ...userForm, allowed_tabs: next });
-                        }}
-                      />
-                      {t}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="modal-actions">
-              <button type="button" className="secondary" onClick={() => setShowCreateUser(false)}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setCreditor("");
+                  setShowCreditorModal(false);
+                  setShowAlphaKb(false);
+                  setKbTarget(null);
+                  setPayment("cash");
+                }}
+              >
                 Cancel
               </button>
-              <button className="primary" disabled={busy}>Create user</button>
+              <button
+                type="button"
+                className="primary"
+                disabled={!creditor.trim() || busy}
+                onClick={() => {
+                  if (!creditor.trim()) {
+                    setError("Enter the creditor name");
+                    return;
+                  }
+                  setShowCreditorModal(false);
+                  setShowAlphaKb(false);
+                  setKbTarget(null);
+                  void checkout("credit");
+                }}
+              >
+                Done — save credit sale
+              </button>
             </div>
           </div>
         </Modal>
@@ -7204,6 +7202,97 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           </form>
         </Modal>
       )}
+
+      {showCreateUser && (
+        <Modal title="Create staff user" onClose={() => { setShowCreateUser(false); setShowAlphaKb(false); }}>
+          <form className="stack" onSubmit={createStaffUser}>
+            <label>
+              Full name
+              <input
+                required
+                value={userForm.full_name}
+                onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
+                placeholder="e.g. Jane"
+              />
+            </label>
+            <label>
+              Staff code
+              <input
+                required
+                value={userForm.staff_code}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    staff_code: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""),
+                  })
+                }
+                placeholder="e.g. jane"
+              />
+            </label>
+            <label>
+              PIN (min 4)
+              <input
+                required
+                id="create-pin-input"
+                type={showSecret ? "text" : "password"}
+                value={userForm.pin}
+                onChange={(e) => setUserForm({ ...userForm, pin: e.target.value })}
+                onFocus={() => openKb("createPin", "alnum")}
+                onClick={() => openKb("createPin", "alnum")}
+                placeholder="Login PIN"
+              />
+            </label>
+            <label>
+              Role
+              <select
+                value={userForm.role}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    role: e.target.value,
+                    allowed_tabs: e.target.value === "admin" ? [...ALL_TABS] : userForm.allowed_tabs,
+                  })
+                }
+              >
+                <option value="cashier">Cashier</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            {userForm.role === "cashier" && (
+              <div>
+                <div className="field-label" style={{ marginBottom: 8 }}>Allowed tabs</div>
+                <div className="perm-grid">
+                  {ALL_TABS.map((t) => (
+                    <label key={t} className="perm-check">
+                      <input
+                        type="checkbox"
+                        checked={userForm.allowed_tabs.includes(t)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...userForm.allowed_tabs, t]
+                            : userForm.allowed_tabs.filter((x) => x !== t);
+                          setUserForm({ ...userForm, allowed_tabs: next });
+                        }}
+                      />
+                      {t}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="secondary" onClick={() => setShowCreateUser(false)}>
+                Cancel
+              </button>
+              <button className="primary" disabled={busy} type="submit">
+                Create user
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {editingUser && (
         <Modal title={`Edit user · ${editingUser.full_name || editingUser.id.slice(0, 8)}`} onClose={() => setEditingUser(null)}>
           <form className="stack" onSubmit={saveUser}>
@@ -7735,15 +7824,15 @@ function OnScreenKeyboard({
       style={{
         flex: 1,
         minWidth: 0,
-        minHeight: isPad ? 84 : 68,
-        height: isPad ? 84 : 68,
+        minHeight: isPad ? 88 : 72,
+        height: isPad ? 88 : 72,
         margin: 0,
         padding: 0,
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: isPad ? 14 : 10,
         background: label === "Done" ? "#16a34a" : "#334155",
         color: "#f8fafc",
-        fontSize: isPad ? (label === "Done" ? 22 : 36) : 28,
+        fontSize: isPad ? (label === "Done" ? 22 : 38) : 30,
         fontWeight: 700,
         fontFamily: "DM Sans, system-ui, sans-serif",
         lineHeight: 1,
@@ -7771,11 +7860,12 @@ function OnScreenKeyboard({
               inset: 0,
               zIndex: 2147483646,
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-end",
               justifyContent: "center",
-              background: "rgba(15,23,42,0.75)",
-              padding: 16,
+              background: "rgba(15,23,42,0.45)",
+              padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))",
               boxSizing: "border-box",
+              pointerEvents: "auto",
             }
           : {
               position: "fixed",
