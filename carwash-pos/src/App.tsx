@@ -621,10 +621,15 @@ export default function App() {
 
   async function markNotificationsRead() {
     if (!supabase || profile?.role !== "admin") return;
-    await supabase.rpc("mark_admin_notifications_read");
-    setAdminNotifications((old) =>
-      old.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })),
-    );
+    const hadUnread = adminNotifications.some((n) => !n.read_at);
+    if (!hadUnread) return;
+    try {
+      await supabase.rpc("mark_admin_notifications_read");
+    } catch {
+      /* still clear locally so UI does not keep showing them */
+    }
+    // Once read, drop from the list — only new inserts appear again
+    setAdminNotifications((old) => old.filter((n) => !!n.read_at));
   }
 
 // Auto log out after idle (minutes from settings; default 5). Returns to login page.
@@ -1025,7 +1030,7 @@ export default function App() {
       if (!sup.error && sup.data) setSuppliers(sup.data || []);
       if (!sr.error && sr.data) setStockReceipts(sr.data || []);
       if (!sm.error && sm.data) setStockMovements(sm.data || []);
-      if (!notif.error && notif.data) setAdminNotifications(notif.data || []);
+      if (!notif.error && notif.data) setAdminNotifications((notif.data || []).filter((n: any) => !n.read_at));
     } catch {
       /* non-blocking */
     }
@@ -1159,7 +1164,7 @@ export default function App() {
     if (!sup.error) setSuppliers(sup.data || []);
     if (!sr.error) setStockReceipts(sr.data || []);
     if (!sm.error) setStockMovements(sm.data || []);
-    if (!notif.error) setAdminNotifications(notif.data || []);
+    if (!notif.error) setAdminNotifications((notif.data || []).filter((n: any) => !n.read_at));
     if (st.data) {
       const nextSettings = {
         ...st.data,
@@ -4332,8 +4337,16 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   className="icon-btn notif-btn"
                   title="Notifications"
                   onClick={() => {
-                    setShowNotifs((v) => !v);
-                    if (!showNotifs) markNotificationsRead();
+                    setShowNotifs((v) => {
+                      const opening = !v;
+                      if (opening) {
+                        // Mark read shortly after open so badge clears and they will not show next time
+                        window.setTimeout(() => {
+                          void markNotificationsRead();
+                        }, 400);
+                      }
+                      return opening;
+                    });
                   }}
                 >
                   🔔
@@ -4352,19 +4365,21 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                       </button>
                     </div>
                     <div className="notif-list">
-                      {adminNotifications.length === 0 && (
-                        <p className="muted tiny" style={{ padding: 12 }}>No notifications yet</p>
+                      {adminNotifications.filter((n) => !n.read_at).length === 0 && (
+                        <p className="muted tiny" style={{ padding: 12 }}>
+                          No new notifications
+                        </p>
                       )}
-                      {adminNotifications.slice(0, 20).map((n) => (
-                        <div
-                          key={n.id}
-                          className={"notif-item" + (n.read_at ? "" : " unread")}
-                        >
-                          <b>{n.title}</b>
-                          <small>{n.body}</small>
-                          <small className="muted">{dateLabel(n.created_at)}</small>
-                        </div>
-                      ))}
+                      {adminNotifications
+                        .filter((n) => !n.read_at)
+                        .slice(0, 20)
+                        .map((n) => (
+                          <div key={n.id} className="notif-item unread">
+                            <b>{n.title}</b>
+                            <small>{n.body}</small>
+                            <small className="muted">{dateLabel(n.created_at)}</small>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
