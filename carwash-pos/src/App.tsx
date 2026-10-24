@@ -5090,8 +5090,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   <b className="cart-total-amount">{money(total)}</b>
                 </div>
                 <div className="field-label cart-pay-label">Pay with</div>
-                <div className="pay-methods pay-methods-v2 pay-methods-three">
-                  {(["cash", "mpesa", "credit"] as const).map((m) => (
+                <div className="pay-methods pay-methods-v2 pay-methods-two">
+                  {(["cash", "mpesa"] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -5101,15 +5101,10 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                       disabled={!cart.length || busy}
                       onClick={() => {
                         setPayment(m);
-                        if (m === "credit") {
-                          setShowCreditorModal(true);
-                          openKb("creditor", "alnum");
-                        } else {
-                          void checkout(m);
-                        }
+                        void checkout(m);
                       }}
                     >
-                      {m === "mpesa" ? "M-Pesa" : m.charAt(0).toUpperCase() + m.slice(1)}
+                      {m === "mpesa" ? "M-Pesa" : "Cash"}
                     </button>
                   ))}
                 </div>
