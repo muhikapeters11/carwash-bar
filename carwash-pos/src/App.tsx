@@ -785,25 +785,57 @@ export default function App() {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
-  // Cursor: show on mouse/laptop; touch-only mode when primary input is touch
+  // Desktop install vs phone browser; Android-like touch when fingers are used
   useEffect(() => {
+    const desktop =
+      !!(window as any).barposDesktop ||
+      !!(window as any).desktop ||
+      /Electron/i.test(navigator.userAgent || "");
     const touchMq = window.matchMedia("(hover: none) and (pointer: coarse)");
+    const anyHover = window.matchMedia("(hover: hover)");
     const narrowMq = window.matchMedia("(max-width: 768px)");
+    const root = document.documentElement;
+
     const apply = () => {
-      const isTouch = touchMq.matches;
-      const isPhone = narrowMq.matches || /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent);
-      document.documentElement.classList.toggle("pos-touch", isTouch && !window.matchMedia("(hover: hover)").matches);
-      document.documentElement.classList.toggle("pos-phone", isPhone);
-      // Phones / small screens: native OS keyboard only
-      setUseNativeKb(isPhone || touchMq.matches && narrowMq.matches);
+      const isPhoneBrowser =
+        !desktop &&
+        (narrowMq.matches || /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent || ""));
+      // Installed desktop app is always "desktop" (OSK, full chrome) — never phone layout
+      root.classList.toggle("pos-desktop", desktop);
+      root.classList.toggle("pos-phone", isPhoneBrowser);
+      // Native phone keyboard only in real mobile browsers — not in desktop Electron
+      setUseNativeKb(isPhoneBrowser);
     };
     apply();
+
+    // Android-like touch: when user touches the screen, hide cursor & boost tap feel
+    let hideCursorTimer: ReturnType<typeof setTimeout> | null = null;
+    const onPointer = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        root.classList.add("pos-android-touch");
+        root.classList.remove("pos-mouse");
+        if (hideCursorTimer) clearTimeout(hideCursorTimer);
+      } else if (e.pointerType === "mouse") {
+        root.classList.add("pos-mouse");
+        root.classList.remove("pos-android-touch");
+      }
+    };
+    // Coarse primary pointer (many POS panels): start in android-touch mode
+    if (touchMq.matches && !anyHover.matches) {
+      root.classList.add("pos-android-touch");
+    } else {
+      root.classList.add("pos-mouse");
+    }
+
+    window.addEventListener("pointerdown", onPointer, { passive: true });
     touchMq.addEventListener?.("change", apply);
     narrowMq.addEventListener?.("change", apply);
     return () => {
+      window.removeEventListener("pointerdown", onPointer);
       touchMq.removeEventListener?.("change", apply);
       narrowMq.removeEventListener?.("change", apply);
-      document.documentElement.classList.remove("pos-touch", "pos-phone");
+      root.classList.remove("pos-desktop", "pos-phone", "pos-android-touch", "pos-mouse", "pos-touch");
+      if (hideCursorTimer) clearTimeout(hideCursorTimer);
     };
   }, []);
 
@@ -1567,7 +1599,11 @@ export default function App() {
 
       // --- OFFLINE PIN ---
       if (!navigator.onLine || !supabase) {
-        const match = loadOfflineCreds().find((c) => c.pinHash && c.pinHash === pinHash);
+        const match = loadOfflineCreds().find(
+          (c) =>
+            (c.pinHash && c.pinHash === pinHash) ||
+            (c.passwordHash && c.passwordHash === pinHash),
+        );
         if (!match) {
           setError(
             "Offline PIN not recognised. Sign in once while online on this device to enable offline PIN login.",
@@ -1599,7 +1635,7 @@ export default function App() {
         const body = await res.json().catch(() => ({}));
         if (!res.ok || body.error) {
           // Fall back to offline vault if edge function fails
-          const match = loadOfflineCreds().find((c) => c.pinHash && c.pinHash === pinHash);
+          const match = loadOfflineCreds().find((c) => (c.pinHash && c.pinHash === pinHash) || (c.passwordHash && c.passwordHash === pinHash));
           if (match) {
             cacheProfile(match.profile);
             setPassword("");
@@ -1615,7 +1651,7 @@ export default function App() {
         }
         em = String(body.email || "").trim().toLowerCase();
       } catch {
-        const match = loadOfflineCreds().find((c) => c.pinHash && c.pinHash === pinHash);
+        const match = loadOfflineCreds().find((c) => (c.pinHash && c.pinHash === pinHash) || (c.passwordHash && c.passwordHash === pinHash));
         if (match) {
           cacheProfile(match.profile);
           setPassword("");
@@ -1640,7 +1676,7 @@ export default function App() {
         password: pin,
       });
       if (error) {
-        const match = loadOfflineCreds().find((c) => c.pinHash && c.pinHash === pinHash);
+        const match = loadOfflineCreds().find((c) => (c.pinHash && c.pinHash === pinHash) || (c.passwordHash && c.passwordHash === pinHash));
         if (match) {
           cacheProfile(match.profile);
           setPassword("");
@@ -1695,12 +1731,17 @@ export default function App() {
   }
 
   function openKb(target: string, mode: "alpha" | "numeric" | "alnum" = "alpha") {
-    // Mobile phones: use the device keyboard — do not open in-app OSK
-    const phone =
-      useNativeKb ||
-      window.matchMedia("(max-width: 768px)").matches ||
-      /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent || "");
-    if (phone) {
+    // Real mobile browser only — desktop Electron always uses in-app keyboard
+    const isDesktopApp =
+      !!(window as any).barposDesktop ||
+      !!(window as any).desktop ||
+      /Electron/i.test(navigator.userAgent || "");
+    const phoneBrowser =
+      !isDesktopApp &&
+      (useNativeKb ||
+        window.matchMedia("(max-width: 768px)").matches ||
+        /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent || ""));
+    if (phoneBrowser) {
       setShowAlphaKb(false);
       setKbTarget(null);
       return;
@@ -4175,136 +4216,106 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
   if (!configured) return <SetupScreen />;
   if (!session)
     return (
-      <div
-        className={
-          "login-wrap" +
-          (showAlphaKb && (kbTarget === "loginPassword" || kbTarget === "loginEmail")
-            ? " login-with-kb"
-            : "")
-        }
-      >
-        <div className="login-shell">
-          <div className="login-card login-card-password">
+      <div className="login-wrap login-pin-page">
+        <div className="login-split">
+          <div className="login-brand-pane">
             <div className="brand-mark login-brand">
               <img
                 src={settings.logo_url || "/carwash-logo.png"}
-                alt="Carwash POS"
+                alt=""
                 className="login-logo-img"
               />
             </div>
-            <h1>{settings.bar_name || "Carwash POS"}</h1>
+            <h1 className="login-club-name">{settings.bar_name || "Carwash POS"}</h1>
             {!isOnline && (
-              <p className="tiny center-text" style={{ marginTop: -4, marginBottom: 6, color: "#f59e0b" }}>
+              <p className="tiny" style={{ color: "#f59e0b", marginTop: 8 }}>
                 Offline mode
               </p>
             )}
+          </div>
+          <div className="login-pin-pane">
             <form
+              className="login-pin-form"
               onSubmit={(e) => {
                 e.preventDefault();
-                void signIn();
+                void signInWithPin();
               }}
-              className="stack"
             >
-              <label>
-                Email
-                <input
-                  id="login-email-input"
-                  type="email"
-                  required
-                  autoComplete="username"
-                  inputMode="email"
-                  value={email}
-                  readOnly={showAlphaKb && kbTarget === "loginEmail"}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setEmail(v);
-                    try {
-                      const cleaned = v.trim().toLowerCase();
-                      if (cleaned) localStorage.setItem("barpos_remember_email", cleaned);
-                    } catch {
-                      /* */
-                    }
-                  }}
-                  onFocus={() => {
-                    setKbTarget("loginEmail");
-                    setKbMode("alnum");
-                    setShowAlphaKb(true);
-                  }}
-                  onClick={() => {
-                    setKbTarget("loginEmail");
-                    setKbMode("alnum");
-                    setShowAlphaKb(true);
-                  }}
-                  placeholder="Email"
-                  style={{ textAlign: "left", fontSize: 16 }}
-                />
-              </label>
-              <label>
-                Password
-                <div className="secret-field">
-                  <input
-                    id="login-password-input"
-                    type={
-                      showSecret || (showAlphaKb && kbTarget === "loginPassword")
-                        ? "text"
-                        : "password"
-                    }
-                    required
-                    autoComplete="current-password"
-                    value={password}
-                    readOnly={showAlphaKb && kbTarget === "loginPassword"}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => {
-                      setKbTarget("loginPassword");
-                      setKbMode("alnum");
-                      setShowAlphaKb(true);
-                      setShowSecret(true);
-                    }}
-                    onClick={() => {
-                      setKbTarget("loginPassword");
-                      setKbMode("alnum");
-                      setShowAlphaKb(true);
-                      setShowSecret(true);
-                    }}
-                    placeholder="Password"
-                    style={{ textAlign: "left", fontSize: 18, letterSpacing: 1 }}
-                  />
-                  <button
-                    type="button"
-                    className="secret-toggle"
-                    onClick={() => setShowSecret((v) => !v)}
-                    tabIndex={-1}
-                  >
-                    {showSecret ? "Hide" : "Show"}
-                  </button>
-                </div>
-              </label>
+              <label className="login-pin-label">PIN</label>
+              <input
+                id="login-pin-input"
+                className="login-pin-display"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
+                value={password}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 12);
+                  setPassword(v);
+                  setPinLoginCode(v);
+                }}
+                onFocus={() => {
+                  // Desktop / POS: optional on-screen pad only (not phone)
+                  const isDesktopApp =
+                    !!(window as any).barposDesktop ||
+                    /Electron/i.test(navigator.userAgent || "");
+                  const isPhone =
+                    !isDesktopApp &&
+                    (useNativeKb ||
+                      window.matchMedia("(max-width: 768px)").matches ||
+                      /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent || ""));
+                  if (!isPhone) {
+                    setKbTarget("loginPassword");
+                    setKbMode("numeric");
+                    setShowAlphaKb(false);
+                  }
+                }}
+                placeholder="••••"
+                maxLength={12}
+              />
+              {/* Desktop / tablet POS number pad — hidden on phones (native keyboard) */}
+              <div className="login-pin-pad" aria-label="PIN number pad">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(
+                  (k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={
+                        "login-pin-key" +
+                        (k === "C" ? " login-pin-key-clear" : "") +
+                        (k === "⌫" ? " login-pin-key-back" : "")
+                      }
+                      onClick={() => {
+                        if (k === "C") {
+                          setPassword("");
+                          setPinLoginCode("");
+                          return;
+                        }
+                        if (k === "⌫") {
+                          setPassword((p) => p.slice(0, -1));
+                          setPinLoginCode((p) => p.slice(0, -1));
+                          return;
+                        }
+                        setPassword((p) => (p + k).slice(0, 12));
+                        setPinLoginCode((p) => (p + k).slice(0, 12));
+                      }}
+                    >
+                      {k}
+                    </button>
+                  ),
+                )}
+              </div>
               <button
                 className="primary full login-sign-btn"
-                disabled={loginBusy || !email.trim() || !password.trim()}
                 type="submit"
+                disabled={loginBusy || password.trim().length < 4}
               >
                 {loginBusy ? "Signing in…" : "Sign in"}
               </button>
               {error && <p className="error">{error}</p>}
             </form>
           </div>
-          {showAlphaKb &&
-            (kbTarget === "loginPassword" || kbTarget === "loginEmail") && (
-              <div className="login-kb-dock">
-                <OnScreenKeyboard
-                  mode="alnum"
-                  value={kbTarget === "loginEmail" ? email : password}
-                  onKey={kbType}
-                  onBack={kbBack}
-                  onSpace={kbSpace}
-                  onClose={() => {
-                    setShowAlphaKb(false);
-                    setKbTarget(null);
-                  }}
-                />
-              </div>
-            )}
         </div>
       </div>
     );

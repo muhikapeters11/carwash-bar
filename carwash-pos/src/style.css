@@ -6331,3 +6331,228 @@ html:not(.pos-touch) .product-card {
     display: none !important;
   }
 }
+
+
+/* ===== v2.5.6 Desktop app + Android-like touch ===== */
+/* Installed desktop app: always desktop chrome (not phone layout) */
+html.pos-desktop .mobile-bottom-nav {
+  display: none !important;
+}
+html.pos-desktop .app-shell {
+  flex-direction: row !important;
+}
+html.pos-desktop .sidebar {
+  width: 235px !important;
+  flex-direction: column !important;
+}
+
+/* Mouse / trackpad on desktop or laptop browser */
+html.pos-mouse, html.pos-mouse * {
+  cursor: auto;
+}
+html.pos-mouse button,
+html.pos-mouse a,
+html.pos-mouse .nav-item,
+html.pos-mouse .product-card,
+html.pos-mouse .pay-btn,
+html.pos-mouse .qty-btn {
+  cursor: pointer;
+}
+
+/* Finger on screen (desktop POS panel or tablet): Android-like */
+html.pos-android-touch, html.pos-android-touch * {
+  cursor: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html.pos-android-touch input,
+html.pos-android-touch textarea {
+  cursor: none !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  font-size: 16px !important; /* prevents iOS zoom; fine on Android panels too */
+}
+html.pos-android-touch button,
+html.pos-android-touch .nav-item,
+html.pos-android-touch .product-card,
+html.pos-android-touch .pay-btn,
+html.pos-android-touch .qty-btn,
+html.pos-android-touch .osk-key {
+  min-height: 48px;
+  transition: transform 0.05s ease, background 0.05s ease, opacity 0.05s ease !important;
+}
+html.pos-android-touch button:active,
+html.pos-android-touch .nav-item:active,
+html.pos-android-touch .product-card:active,
+html.pos-android-touch .pay-btn:active,
+html.pos-android-touch .qty-btn:active,
+html.pos-android-touch .osk-key:active {
+  transform: scale(0.96) !important;
+  opacity: 0.92;
+}
+/* Remove hover sticky states that feel laggy on touch */
+html.pos-android-touch .product-card:hover,
+html.pos-android-touch .nav-item:hover:not(.active) {
+  transform: none;
+}
+
+
+/* ===== PIN login split layout (v2.5.7) ===== */
+.login-wrap.login-pin-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: linear-gradient(160deg, #0f172a 0%, #1e293b 55%, #0f172a 100%);
+}
+.login-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: min(920px, 100%);
+  min-height: min(560px, 90dvh);
+  background: #fff;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+}
+html.dark .login-split {
+  background: #151c2d;
+  color: #e8edf7;
+}
+.login-brand-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  text-align: center;
+}
+.login-brand-pane .login-logo-img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  border-radius: 24px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+.login-club-name {
+  font-size: 28px;
+  margin: 0;
+  color: #fff !important;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.login-pin-pane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 24px;
+}
+.login-pin-form {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-pin-label {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.login-pin-display {
+  font-size: 28px !important;
+  letter-spacing: 0.35em !important;
+  text-align: center !important;
+  padding: 14px 12px !important;
+  border-radius: 14px !important;
+  border: 2px solid #e2e8f0 !important;
+  font-weight: 700 !important;
+}
+.login-pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.login-pin-key {
+  min-height: 56px;
+  border: 0;
+  border-radius: 14px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.08);
+}
+.login-pin-key:active {
+  background: #f59e0b;
+  color: #0f172a;
+  transform: scale(0.96);
+}
+html.dark .login-pin-key {
+  background: #243044;
+  color: #f1f5f9;
+}
+.login-pin-key-clear {
+  font-size: 16px;
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+.login-pin-key-back {
+  font-size: 18px;
+}
+
+/* Mobile: stack brand above PIN; hide on-screen pad; use phone keyboard */
+@media (max-width: 768px) {
+  .login-wrap.login-pin-page {
+    padding: 0;
+    align-items: stretch;
+  }
+  .login-split {
+    grid-template-columns: 1fr;
+    min-height: 100dvh;
+    border-radius: 0;
+    width: 100%;
+  }
+  .login-brand-pane {
+    padding: 28px 16px 16px;
+    min-height: auto;
+  }
+  .login-brand-pane .login-logo-img {
+    width: 80px;
+    height: 80px;
+  }
+  .login-club-name {
+    font-size: 22px;
+  }
+  .login-pin-pane {
+    padding: 20px 16px 32px;
+    align-items: flex-start;
+  }
+  .login-pin-form {
+    max-width: 100%;
+  }
+  /* Phone: use device keyboard only */
+  html.pos-phone .login-pin-pad,
+  .login-pin-page .login-pin-pad {
+    display: none;
+  }
+}
+/* Desktop app / large screens: always show pad */
+html.pos-desktop .login-pin-pad {
+  display: grid !important;
+}
+@media (min-width: 769px) {
+  .login-pin-pad {
+    display: grid !important;
+  }
+}
