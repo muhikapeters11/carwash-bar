@@ -45,7 +45,12 @@
         display: grid; place-items: center; font-size: 28px;
       }
     </style>
-  </head>
+    <style>
+    iframe[src*="netlify"], .netlify-badge, a[href*="netlify.com"][style*="position"] {
+      display: none !important;
+    }
+  </style>
+</head>
   <body>
     <div id="offline-boot">
       <div>

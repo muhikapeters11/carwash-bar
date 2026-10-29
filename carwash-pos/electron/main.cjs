@@ -2,7 +2,7 @@
  * Bar POS — Electron main process
  * - Thermal print via dedicated window
  * - Tray + minimize to tray
- * - Open at login (toggle)
+ * - Open at login (enabled by default for installed builds; tray toggle to change)
  * - Auto-update when published (electron-updater)
  */
 const { app, BrowserWindow, shell, Menu, dialog, ipcMain, Tray, nativeImage } = require("electron");
@@ -113,6 +113,16 @@ function createTray() {
       type: "checkbox",
       checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => {
+        try {
+          const prefFile = path.join(app.getPath("userData"), "startup-pref.json");
+          fs.writeFileSync(
+            prefFile,
+            JSON.stringify({ initialized: true, openAtLogin: !!item.checked }),
+            "utf8",
+          );
+        } catch {
+          /* */
+        }
         app.setLoginItemSettings({
           openAtLogin: item.checked,
           openAsHidden: false,
@@ -424,10 +434,52 @@ ipcMain.handle("barpos:get-login-item", () => {
 
 ipcMain.handle("barpos:set-login-item", (_e, openAtLogin) => {
   app.setLoginItemSettings({ openAtLogin: !!openAtLogin, openAsHidden: false });
+  try {
+    const prefFile = path.join(app.getPath("userData"), "startup-pref.json");
+    fs.writeFileSync(
+      prefFile,
+      JSON.stringify({ initialized: true, openAtLogin: !!openAtLogin }),
+      "utf8",
+    );
+  } catch {
+    /* */
+  }
   return app.getLoginItemSettings();
 });
 
+function ensureOpenAtLoginDefault() {
+  // Built-in: installed desktop app opens after the computer starts (Windows login)
+  if (!app.isPackaged) return;
+  try {
+    const prefFile = path.join(app.getPath("userData"), "startup-pref.json");
+    let pref = { initialized: false, openAtLogin: true };
+    try {
+      if (fs.existsSync(prefFile)) {
+        pref = { ...pref, ...JSON.parse(fs.readFileSync(prefFile, "utf8")) };
+      }
+    } catch {
+      /* */
+    }
+    if (!pref.initialized) {
+      app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false });
+      pref = { initialized: true, openAtLogin: true };
+      try {
+        fs.writeFileSync(prefFile, JSON.stringify(pref), "utf8");
+      } catch {
+        /* */
+      }
+    }
+  } catch (e) {
+    try {
+      app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false });
+    } catch {
+      /* */
+    }
+  }
+}
+
 app.whenReady().then(() => {
+  ensureOpenAtLoginDefault();
   createWindow();
   createTray();
   setupAutoUpdater();

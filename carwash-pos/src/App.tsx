@@ -1271,6 +1271,22 @@ export default function App() {
     if (!sr.error) setStockReceipts(sr.data || []);
     if (!sm.error) setStockMovements(sm.data || []);
     if (!notif.error) setAdminNotifications(filterUnreadNotifs(notif.data || []));
+    try {
+      localStorage.setItem(
+        "barpos_cache_sales",
+        JSON.stringify((s.data || []).slice(0, 200)),
+      );
+      localStorage.setItem(
+        "barpos_cache_expenses",
+        JSON.stringify((ex.data || []).slice(0, 100)),
+      );
+      localStorage.setItem(
+        "barpos_cache_sale_items",
+        JSON.stringify((si.data || []).slice(0, 500)),
+      );
+    } catch {
+      /* */
+    }
     if (st.data) {
       const nextSettings = {
         ...st.data,
@@ -4259,7 +4275,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               </h1>
               {!isOnline && (
                 <p className="tiny" style={{ color: "#f59e0b", marginTop: 10 }}>
-                  Offline mode
+                  Offline
                 </p>
               )}
             </div>
@@ -4272,16 +4288,28 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 void signInWithPin();
               }}
             >
-              <div className="login-pin-dots" aria-label="PIN">
-                {password.length === 0 ? (
-                  <span className="login-pin-placeholder">Enter PIN</span>
-                ) : (
-                  password.split("").map((_, i) => (
-                    <span key={i} className="login-pin-dot">
-                      •
-                    </span>
-                  ))
-                )}
+              <div className="login-pin-row">
+                <div className="login-pin-dots" aria-label="PIN">
+                  {password.length === 0 ? (
+                    <span className="login-pin-placeholder">PIN</span>
+                  ) : showSecret ? (
+                    <span className="login-pin-digits">{password}</span>
+                  ) : (
+                    password.split("").map((_, i) => (
+                      <span key={i} className="login-pin-dot">
+                        •
+                      </span>
+                    ))
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="login-pin-toggle"
+                  onClick={() => setShowSecret((v) => !v)}
+                  aria-label={showSecret ? "Hide PIN" : "Show PIN"}
+                >
+                  {showSecret ? "Hide" : "Show"}
+                </button>
               </div>
               <div className="login-pin-pad login-pin-pad-lg" aria-label="PIN pad">
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(
@@ -4295,18 +4323,17 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                         (k === "⌫" ? " login-pin-key-back" : "")
                       }
                       onClick={() => {
-                        if (k === "C") {
-                          setPassword("");
-                          setPinLoginCode("");
-                          return;
+                        let next = password;
+                        if (k === "C") next = "";
+                        else if (k === "⌫") next = password.slice(0, -1);
+                        else next = (password + k).slice(0, 12);
+                        setPassword(next);
+                        setPinLoginCode(next);
+                        if (next.length === 6 && k !== "C" && k !== "⌫") {
+                          window.setTimeout(() => {
+                            void signInWithPin();
+                          }, 80);
                         }
-                        if (k === "⌫") {
-                          setPassword((prev) => prev.slice(0, -1));
-                          setPinLoginCode((prev) => prev.slice(0, -1));
-                          return;
-                        }
-                        setPassword((prev) => (prev + k).slice(0, 12));
-                        setPinLoginCode((prev) => (prev + k).slice(0, 12));
                       }}
                     >
                       {k}
@@ -5272,7 +5299,27 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 )}
               </div>
             </div>
-            {(() => {
+            
+            <div className="cat-bar receive-cat-chips">
+              <button
+                type="button"
+                className={"cat-chip" + (!search ? " active" : "")}
+                onClick={() => setSearch("")}
+              >
+                All
+              </button>
+              {orderedCategories(products.filter((p) => p.active)).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={"cat-chip" + (search.toLowerCase() === c.toLowerCase() ? " active" : "")}
+                  onClick={() => setSearch(c)}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+{(() => {
               const seen = new Set<string>();
               return orderedCategories(products.filter((p) => p.active)).map((category) => {
                 const rows = products
@@ -6320,7 +6367,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               </button>
             </div>
             <div className="alert info-alert" style={{ marginBottom: 16 }}>
-              Staff login: use <b>email + password</b> (same credentials as Supabase Auth). After setting a PIN here, staff type that PIN on the login screen. Each PIN must be unique. If login fails, re-save the PIN or deploy Edge Functions <code>pin-login</code> + <code>admin-user</code>. Turn off Confirm email in Supabase Auth settings for staff accounts.
               Email signups must be enabled in Supabase Auth when creating users from this screen. To remove a user, use Delete (disables the account; sales history is kept).
             </div>
             <div className="table-scroll">
@@ -6618,9 +6664,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 Factory reset (wipe all data)
               </button>
             </div>
-            <p className="tiny muted" style={{ marginTop: 16 }}>
-              Database backups: use the Supabase Dashboard → Database → Backups. Never share your service_role key.
-            </p>
           </section>
         )}
         {tab === "Backup & Settings" && !isAdmin && (
@@ -6696,7 +6739,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
             <label>
               Product image
               <input type="file" accept="image/*" onChange={handleImage} />
-              <small className="tiny muted">Images are auto-framed to a square so every product card looks the same.</small>
             </label>
             {form.image_url && (
               <div className="product-image-preview-frame">
@@ -7454,7 +7496,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               </div>
             )}
             {userForm.role === "admin" && (
-              <p className="tiny muted">Admins automatically have access to every tab.</p>
             )}
             <label>
               Staff code
@@ -7565,8 +7606,14 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           onBack={kbBack}
           onSpace={kbSpace}
           onClose={() => {
+            const t = kbTarget;
+            const name = creditor.trim();
             setShowAlphaKb(false);
             setKbTarget(null);
+            if (t === "creditor" && name && showCreditorModal) {
+              setShowCreditorModal(false);
+              void checkout("credit");
+            }
           }}
         />
       )}
@@ -7685,13 +7732,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           <div className="modal-actions" style={{ flexWrap: "wrap" }}>
             <button className="secondary" onClick={() => setReceipt(null)}>
               Close
-            </button>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => shareReceiptWhatsApp(receipt)}
-            >
-              Share WhatsApp
             </button>
             <button
               className="primary"
@@ -8227,7 +8267,6 @@ function SetupScreen() {
           Never put the Supabase <b>service_role</b> key in frontend or Netlify
           env vars — only the <b>anon / publishable</b> key.
         </div>
-        <p className="tiny muted">See DEPLOY.md for GitHub → Netlify steps.</p>
       </div>
     </div>
   );

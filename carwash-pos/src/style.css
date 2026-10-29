@@ -6710,3 +6710,87 @@ html.dark .login-pin-pane {
     height: auto !important;
   }
 }
+
+
+/* ===== v2.6.3 UI polish ===== */
+.login-pin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.login-pin-row .login-pin-dots {
+  flex: 1;
+  min-height: 52px;
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 8px 12px;
+}
+.login-pin-digits {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  color: #0f172a;
+}
+html.dark .login-pin-digits { color: #f8fafc; }
+.login-pin-toggle {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Cart: taller list, ~4 rows, no overlap */
+.cart-panel-v2 .cart-lines,
+.cart-lines {
+  min-height: 280px !important;
+  max-height: min(42vh, 340px) !important;
+  overflow-y: auto !important;
+  gap: 8px !important;
+  padding-bottom: 8px !important;
+}
+.cart-line,
+.cart-line-v2 {
+  min-height: 64px !important;
+  max-height: none !important;
+  height: auto !important;
+  flex-shrink: 0 !important;
+  overflow: visible !important;
+  align-items: center !important;
+}
+
+.cat-bar.receive-cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.cat-chip {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cat-chip.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #0f172a;
+}
+
+/* Hide Netlify badge / identity widget chrome */
+iframe[src*="netlify"],
+.netlify-badge,
+body > a[href*="netlify.com"],
+div[data-netlify-ident],
+#netlify-identity-widget {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
