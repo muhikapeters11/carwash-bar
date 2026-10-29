@@ -1584,7 +1584,7 @@ export default function App() {
     }
   }
 
-  /** Staff PIN login — works online (Edge Function) and offline (local vault) */
+  /** PIN → match profile → Auth email → sign in (online first; no Edge Function required) */
   async function signInWithPin(e?: React.FormEvent) {
     if (e) e.preventDefault();
     const pin = (password || pinLoginCode || "").trim();
@@ -1594,113 +1594,142 @@ export default function App() {
     }
     setLoginBusy(true);
     setError("");
+    const pinHash = await hashPin(pin);
+    const offlineMatch = () =>
+      loadOfflineCreds().find(
+        (c) =>
+          (c.pinHash && c.pinHash === pinHash) ||
+          (c.passwordHash && c.passwordHash === pinHash),
+      );
+
+    const finishOffline = async () => {
+      const match = offlineMatch();
+      if (!match) return false;
+      cacheProfile(match.profile);
+      setPassword("");
+      setPinLoginCode("");
+      setShowAlphaKb(false);
+      await finishLogin(makeOfflineSession(match.userId, match.email));
+      return true;
+    };
+
     try {
-      const pinHash = await hashPin(pin);
+      // Prefer cloud whenever Supabase is configured — even if browser says offline
+      if (supabase && url && key) {
+        let em = "";
+        let resolveErr = "";
 
-      // --- OFFLINE PIN ---
-      if (!navigator.onLine || !supabase) {
-        const match = loadOfflineCreds().find(
-          (c) =>
-            (c.pinHash && c.pinHash === pinHash) ||
-            (c.passwordHash && c.passwordHash === pinHash),
-        );
-        if (!match) {
-          setError(
-            "Offline PIN not recognised. Sign in once while online on this device to enable offline PIN login.",
+        // A) RPC resolve_pin_login → email
+        try {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc(
+            "resolve_pin_login",
+            { p_pin: pin },
           );
-          setLoginBusy(false);
-          return;
+          if (rpcErr) {
+            resolveErr = rpcErr.message || "PIN lookup failed";
+          } else if (rpcData) {
+            const row =
+              typeof rpcData === "string" ? JSON.parse(rpcData) : rpcData;
+            em = String(row?.email || row?.login_email || "")
+              .trim()
+              .toLowerCase();
+          }
+        } catch (ex: any) {
+          resolveErr = ex?.message || "PIN lookup failed";
         }
-        cacheProfile(match.profile);
-        setPassword("");
-        setPinLoginCode("");
-        setShowAlphaKb(false);
-        await finishLogin(makeOfflineSession(match.userId, match.email));
-        setLoginBusy(false);
-        return;
-      }
 
-      // --- ONLINE: Edge Function → email/password ---
-      const base =
-        (import.meta as any).env?.VITE_SUPABASE_URL ||
-        url ||
-        "";
-      let em = "";
-      try {
-        const res = await fetch(`${base}/functions/v1/pin-login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok || body.error) {
-          // Fall back to offline vault if edge function fails
-          const match = loadOfflineCreds().find((c) => (c.pinHash && c.pinHash === pinHash) || (c.passwordHash && c.passwordHash === pinHash));
-          if (match) {
-            cacheProfile(match.profile);
+        // B) REST RPC fallback (same function, raw fetch)
+        if (!em && url) {
+          try {
+            const res = await fetch(`${url}/rest/v1/rpc/resolve_pin_login`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                apikey: key,
+                Authorization: `Bearer ${key}`,
+              },
+              body: JSON.stringify({ p_pin: pin }),
+            });
+            const body = await res.json().catch(() => null);
+            if (res.ok && body) {
+              const row = typeof body === "string" ? JSON.parse(body) : body;
+              em = String(row?.email || row?.login_email || "")
+                .trim()
+                .toLowerCase();
+            } else if (body?.message) {
+              resolveErr = String(body.message);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // C) Edge function (optional)
+        if (!em && url) {
+          try {
+            const res = await fetch(`${url}/functions/v1/pin-login`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                apikey: key,
+                Authorization: `Bearer ${key}`,
+              },
+              body: JSON.stringify({ pin }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (res.ok && body?.email) {
+              em = String(body.email).trim().toLowerCase();
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (em) {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: em,
+            password: pin,
+          });
+          if (error) {
+            // Auth password must equal PIN
+            if (await finishOffline()) return;
+            setError(
+              "PIN matched account " +
+                em +
+                " but password in Auth is not this PIN. Open Authentication → Users → set password to the PIN.",
+            );
+            return;
+          }
+          if (data.session) {
             setPassword("");
             setPinLoginCode("");
             setShowAlphaKb(false);
-            await finishLogin(makeOfflineSession(match.userId, match.email));
-            setLoginBusy(false);
+            await finishLogin(data.session, { pin, password: pin });
             return;
           }
-          setError(body.error || "Invalid PIN");
-          setLoginBusy(false);
-          return;
         }
-        em = String(body.email || "").trim().toLowerCase();
-      } catch {
-        const match = loadOfflineCreds().find((c) => (c.pinHash && c.pinHash === pinHash) || (c.passwordHash && c.passwordHash === pinHash));
-        if (match) {
-          cacheProfile(match.profile);
-          setPassword("");
-          setPinLoginCode("");
-          setShowAlphaKb(false);
-          await finishLogin(makeOfflineSession(match.userId, match.email));
-          setLoginBusy(false);
-          return;
-        }
-        setError("Network error. Offline PIN not set up on this device yet.");
-        setLoginBusy(false);
+
+        // No email resolved — try offline vault, else explain
+        if (await finishOffline()) return;
+        const hint = /invalid pin/i.test(resolveErr)
+          ? "Invalid PIN (no matching pin_hash on an active profile)."
+          : resolveErr
+            ? resolveErr
+            : "Could not match PIN to an account.";
+        setError(
+          hint +
+            " Run supabase/ensure-pin-login.sql in SQL Editor, set Auth password = PIN for each user.",
+        );
         return;
       }
 
-      if (!em) {
-        setError("PIN resolved but no email on account. Ask admin to recreate the user.");
-        setLoginBusy(false);
-        return;
-      }
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: em,
-        password: pin,
-      });
-      if (error) {
-        const match = loadOfflineCreds().find((c) => (c.pinHash && c.pinHash === pinHash) || (c.passwordHash && c.passwordHash === pinHash));
-        if (match) {
-          cacheProfile(match.profile);
-          setPassword("");
-          setPinLoginCode("");
-          setShowAlphaKb(false);
-          await finishLogin(makeOfflineSession(match.userId, match.email));
-          setLoginBusy(false);
-          return;
-        }
-        setError(
-          error.message?.includes("Invalid")
-            ? "Invalid PIN. Ask admin to re-save your PIN in Users."
-            : error.message || "Login failed",
-        );
-        setLoginBusy(false);
-        return;
-      }
-      if (data.session) {
-        setShowAlphaKb(false);
-        setPassword("");
-        setPinLoginCode("");
-        await finishLogin(data.session, { pin, password: pin });
-      }
+      // No supabase client — offline only
+      if (await finishOffline()) return;
+      setError(
+        "App is not connected to Supabase. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then rebuild. Offline PIN works only after a successful online login on this device.",
+      );
     } catch (err: any) {
+      if (await finishOffline()) return;
       setError(err?.message || "PIN login failed.");
     } finally {
       setLoginBusy(false);
