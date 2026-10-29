@@ -7495,8 +7495,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </div>
               </div>
             )}
-            {userForm.role === "admin" && (
-            )}
             <label>
               Staff code
               <input
@@ -7531,7 +7529,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               </div>
             </label>
             <p className="tiny muted">
-              Cashiers sign in with this PIN on the login screen (login PIN mode). Each PIN must be unique.
+              Admins and cashiers both sign in with this PIN on the login screen (login PIN mode). Each PIN must be unique.
             </p>
             <div className="modal-actions">
               <button type="button" className="secondary" onClick={() => setEditingUser(null)}>
