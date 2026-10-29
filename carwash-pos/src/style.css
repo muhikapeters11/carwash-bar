@@ -6556,3 +6556,88 @@ html.pos-desktop .login-pin-pad {
     display: grid !important;
   }
 }
+
+
+/* ===== Login v2: logo|name left, big pad right (2.6.1) ===== */
+.login-split-v2 {
+  grid-template-columns: 1fr 1fr !important;
+  min-height: min(640px, 92dvh) !important;
+  width: min(980px, 100%) !important;
+}
+.login-brand-pane {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.login-brand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+  padding: 24px;
+}
+.login-brand-stack .login-logo-img {
+  width: min(200px, 42vw) !important;
+  height: min(200px, 42vw) !important;
+  object-fit: contain !important;
+  border-radius: 28px !important;
+  background: #fff !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+.login-club-name {
+  font-size: clamp(22px, 3.2vw, 34px) !important;
+  margin: 0 !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  max-width: 16ch;
+  line-height: 1.15;
+}
+.login-pin-form-v2 {
+  max-width: 380px !important;
+  width: 100%;
+  gap: 14px !important;
+}
+.login-pin-dots {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 28px;
+  letter-spacing: 0.2em;
+  color: #0f172a;
+  font-weight: 700;
+}
+html.dark .login-pin-dots { color: #f1f5f9; }
+.login-pin-placeholder {
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.login-pin-pad-lg {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 12px !important;
+}
+.login-pin-key-lg {
+  min-height: 72px !important;
+  font-size: 28px !important;
+  border-radius: 16px !important;
+  font-weight: 800 !important;
+}
+@media (max-width: 768px) {
+  .login-split-v2 {
+    grid-template-columns: 1fr !important;
+  }
+  .login-brand-stack .login-logo-img {
+    width: 100px !important;
+    height: 100px !important;
+  }
+  .login-pin-key-lg {
+    min-height: 58px !important;
+    font-size: 22px !important;
+  }
+  /* Phone: keep pad (touch) — user asked mobile keyboard before; pad is fine for PIN digits */
+}

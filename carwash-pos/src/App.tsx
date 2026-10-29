@@ -4246,72 +4246,51 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
   if (!session)
     return (
       <div className="login-wrap login-pin-page">
-        <div className="login-split">
+        <div className="login-split login-split-v2">
           <div className="login-brand-pane">
-            <div className="brand-mark login-brand">
+            <div className="login-brand-stack">
               <img
                 src={settings.logo_url || "/carwash-logo.png"}
                 alt=""
                 className="login-logo-img"
               />
+              <h1 className="login-club-name">
+                {settings.bar_name || "Carwash POS"}
+              </h1>
+              {!isOnline && (
+                <p className="tiny" style={{ color: "#f59e0b", marginTop: 10 }}>
+                  Offline mode
+                </p>
+              )}
             </div>
-            <h1 className="login-club-name">{settings.bar_name || "Carwash POS"}</h1>
-            {!isOnline && (
-              <p className="tiny" style={{ color: "#f59e0b", marginTop: 8 }}>
-                Offline mode
-              </p>
-            )}
           </div>
           <div className="login-pin-pane">
             <form
-              className="login-pin-form"
+              className="login-pin-form login-pin-form-v2"
               onSubmit={(e) => {
                 e.preventDefault();
                 void signInWithPin();
               }}
             >
-              <label className="login-pin-label">PIN</label>
-              <input
-                id="login-pin-input"
-                className="login-pin-display"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                autoComplete="one-time-code"
-                value={password}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "").slice(0, 12);
-                  setPassword(v);
-                  setPinLoginCode(v);
-                }}
-                onFocus={() => {
-                  // Desktop / POS: optional on-screen pad only (not phone)
-                  const isDesktopApp =
-                    !!(window as any).barposDesktop ||
-                    /Electron/i.test(navigator.userAgent || "");
-                  const isPhone =
-                    !isDesktopApp &&
-                    (useNativeKb ||
-                      window.matchMedia("(max-width: 768px)").matches ||
-                      /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent || ""));
-                  if (!isPhone) {
-                    setKbTarget("loginPassword");
-                    setKbMode("numeric");
-                    setShowAlphaKb(false);
-                  }
-                }}
-                placeholder="••••"
-                maxLength={12}
-              />
-              {/* Desktop / tablet POS number pad — hidden on phones (native keyboard) */}
-              <div className="login-pin-pad" aria-label="PIN number pad">
+              <div className="login-pin-dots" aria-label="PIN">
+                {password.length === 0 ? (
+                  <span className="login-pin-placeholder">Enter PIN</span>
+                ) : (
+                  password.split("").map((_, i) => (
+                    <span key={i} className="login-pin-dot">
+                      •
+                    </span>
+                  ))
+                )}
+              </div>
+              <div className="login-pin-pad login-pin-pad-lg" aria-label="PIN pad">
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map(
                   (k) => (
                     <button
                       key={k}
                       type="button"
                       className={
-                        "login-pin-key" +
+                        "login-pin-key login-pin-key-lg" +
                         (k === "C" ? " login-pin-key-clear" : "") +
                         (k === "⌫" ? " login-pin-key-back" : "")
                       }
@@ -4322,12 +4301,12 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                           return;
                         }
                         if (k === "⌫") {
-                          setPassword((p) => p.slice(0, -1));
-                          setPinLoginCode((p) => p.slice(0, -1));
+                          setPassword((prev) => prev.slice(0, -1));
+                          setPinLoginCode((prev) => prev.slice(0, -1));
                           return;
                         }
-                        setPassword((p) => (p + k).slice(0, 12));
-                        setPinLoginCode((p) => (p + k).slice(0, 12));
+                        setPassword((prev) => (prev + k).slice(0, 12));
+                        setPinLoginCode((prev) => (prev + k).slice(0, 12));
                       }}
                     >
                       {k}
