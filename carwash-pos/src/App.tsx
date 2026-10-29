@@ -7495,6 +7495,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </div>
               </div>
             )}
+            {userForm.role === "admin" && (
+            )}
             <label>
               Staff code
               <input
