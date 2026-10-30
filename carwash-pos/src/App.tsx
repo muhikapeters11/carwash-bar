@@ -163,6 +163,65 @@ type OfflineSale = {
   sync_error?: string;
 };
 
+
+function offlineQueueAsSales(q: OfflineSale[]): Sale[] {
+  return (q || [])
+    .filter((s) => !s.synced)
+    .map((s) => ({
+      id: s.id,
+      receipt_no: s.receipt_no,
+      total: Number(s.total) || 0,
+      cost_total: Number(s.cost_total) || 0,
+      payment_method: s.payment_method || "cash",
+      created_at: s.created_at,
+      cashier_id: s.cashier_id || "",
+      creditor_name: s.creditor_name ?? null,
+    }));
+}
+
+function offlineSaleItems(q: OfflineSale[]): SoldItem[] {
+  const rows: SoldItem[] = [];
+  for (const s of q || []) {
+    if (s.synced) continue;
+    for (const it of s.items || []) {
+      rows.push({
+        product_name: it.product_name,
+        quantity: it.quantity,
+        line_total: Number(it.unit_price) * Number(it.quantity),
+        sale_id: s.id,
+      });
+    }
+  }
+  return rows;
+}
+
+const OFFLINE_AUDITS_KEY = "barpos_offline_audits";
+type OfflineAudit = {
+  id: string;
+  created_at: string;
+  product_id: string;
+  product_name: string;
+  new_quantity: number;
+  expected_qty: number;
+  note: string;
+  user_id: string;
+  synced?: boolean;
+};
+function loadOfflineAudits(): OfflineAudit[] {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_AUDITS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveOfflineAudits(q: OfflineAudit[]) {
+  try {
+    localStorage.setItem(OFFLINE_AUDITS_KEY, JSON.stringify(q));
+  } catch {
+    /* */
+  }
+}
+
 function loadOfflineQueue(): OfflineSale[] {
   try {
     const raw = localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]";
@@ -1027,10 +1086,57 @@ export default function App() {
       return;
     }
     if (!data) {
-      setProfile(null);
-      setError(
-        "No profile for this account. In Supabase SQL Editor, run the admin profile SQL for your email.",
-      );
+      // Auto-create profile when user exists in Auth but has no profiles row
+      const email = String(session.user.email || "").toLowerCase();
+      const meta = (session.user as any).user_metadata || {};
+      const fullName =
+        meta.full_name || meta.name || (email ? email.split("@")[0] : "Staff");
+      const role = meta.role === "admin" ? "admin" : "cashier";
+      const insertRow: any = {
+        id: session.user.id,
+        full_name: fullName,
+        role,
+        active: true,
+        login_email: email || null,
+        allowed_tabs:
+          role === "admin"
+            ? null
+            : ["Dashboard", "Sell", "Credits", "Expenses"],
+      };
+      // Optional PIN from Auth user_metadata.pin
+      const pinMeta = String(meta.pin || "").trim();
+      if (/^[0-9]{4,12}$/.test(pinMeta)) {
+        try {
+          insertRow.pin_hash = await hashPin(pinMeta);
+        } catch {
+          /* */
+        }
+      }
+      const { data: created, error: insErr } = await supabase
+        .from("profiles")
+        .upsert(insertRow, { onConflict: "id" })
+        .select(
+          "id,full_name,role,active,allowed_tabs,staff_code,pin_hash,login_email",
+        )
+        .single();
+      if (insErr || !created) {
+        setProfile(null);
+        setError(
+          "No profile for this account and could not create one. In SQL Editor run: insert into profiles for your auth user id. (" +
+            (insErr?.message || "unknown") +
+            ")",
+        );
+        return;
+      }
+      setProfile(created);
+      cacheProfile(created);
+      if (created.active) {
+        setTab(created.role === "admin" ? "Dashboard" : "Sell");
+      }
+      void (async () => {
+        await Promise.all([refreshProductsOnly(), refreshSettingsOnly()]);
+        void refreshSecondary();
+      })();
       return;
     }
     setProfile(data);
@@ -2436,20 +2542,79 @@ export default function App() {
   }
   async function auditStock(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase || !showAudit) return;
+    if (!showAudit) return;
+    const counted = Math.max(0, Math.round(Number(auditQty)));
+    const expected = Number(showAudit.stock_qty);
+    const variance = counted - expected;
+    const auditName = showAudit.name;
+    const reason = (auditReason || "Inventory audit").trim() || "Inventory audit";
+    const productId = showAudit.id;
+
+    // Local stock update immediately (online or offline)
+    setProducts((prev) => {
+      const next = prev.map((p) =>
+        p.id === productId ? { ...p, stock_qty: counted } : p,
+      );
+      cacheProducts(next);
+      void idbCacheProducts(next);
+      return next;
+    });
+
+    // Offline or no client → queue audit
+    if (!navigator.onLine || !supabase || isOfflineSession(session)) {
+      const row: OfflineAudit = {
+        id:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `aud-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        product_id: productId,
+        product_name: auditName,
+        new_quantity: counted,
+        expected_qty: expected,
+        note: `${reason} (offline)`,
+        user_id: profile?.id || session?.user?.id || "",
+      };
+      const q = [...loadOfflineAudits().filter((a) => !a.synced), row];
+      saveOfflineAudits(q);
+      setShowAudit(null);
+      setAuditQty("");
+      flash("Audit saved offline — will sync when online");
+      requestBackgroundSync("barpos-sync");
+      return;
+    }
+
     setBusy(true);
     const { error } = await supabase.rpc("adjust_stock", {
-      p_product_id: showAudit.id,
-      p_new_quantity: Math.max(0, Math.round(Number(auditQty))),
-      p_note: auditReason,
+      p_product_id: productId,
+      p_new_quantity: counted,
+      p_note: reason,
     });
-    if (error) setError(error.message);
-    else {
-      const expected = showAudit.stock_qty;
-      const counted = Math.max(0, Math.round(Number(auditQty)));
-      const variance = counted - expected;
-      const auditName = showAudit.name;
-      const reason = auditReason;
+    if (error) {
+      // Network blip → still keep local qty + queue
+      if (/failed to fetch|network|timeout|offline|ERR_|Load failed/i.test(error.message || "")) {
+        const row: OfflineAudit = {
+          id:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `aud-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          product_id: productId,
+          product_name: auditName,
+          new_quantity: counted,
+          expected_qty: expected,
+          note: `${reason} (queued)`,
+          user_id: profile?.id || session?.user?.id || "",
+        };
+        saveOfflineAudits([...loadOfflineAudits().filter((a) => !a.synced), row]);
+        setShowAudit(null);
+        flash("Audit saved offline — will sync when online");
+        requestBackgroundSync("barpos-sync");
+        setBusy(false);
+        return;
+      }
+      setError(error.message);
+    } else {
       setShowAudit(null);
       try {
         await supabase.rpc("log_activity", {
@@ -2457,10 +2622,10 @@ export default function App() {
           p_details: `${auditName}: expected ${expected} → counted ${counted} (var ${variance >= 0 ? "+" : ""}${variance}) · ${reason}`,
         });
       } catch {
-        /* ignore log failures */
+        /* ignore */
       }
       flash("Inventory audit saved");
-      await refreshAll();
+      void refreshProductsOnly();
     }
     setBusy(false);
   }
@@ -2907,6 +3072,39 @@ export default function App() {
       await idbSaveStockQueue(stockRemaining);
       setPendingStock(stockRemaining);
 
+      // --- Inventory audits (offline adjust_stock) ---
+      try {
+        let auditsQ = loadOfflineAudits().filter((a) => !a.synced);
+        const auditOk = new Set<string>();
+        for (const aud of auditsQ) {
+          try {
+            let { error } = await supabase!.rpc("adjust_stock", {
+              p_product_id: aud.product_id,
+              p_new_quantity: aud.new_quantity,
+              p_note: aud.note || "Inventory audit (offline sync)",
+            });
+            if (error && isAuthErr(error.message || "")) {
+              const ok = await ensureCloudSession();
+              if (ok) {
+                ({ error } = await supabase!.rpc("adjust_stock", {
+                  p_product_id: aud.product_id,
+                  p_new_quantity: aud.new_quantity,
+                  p_note: aud.note || "Inventory audit (offline sync)",
+                }));
+              }
+            }
+            if (!error) auditOk.add(aud.id);
+          } catch {
+            /* keep queued */
+          }
+        }
+        if (auditOk.size) {
+          saveOfflineAudits(auditsQ.filter((a) => !auditOk.has(a.id)));
+        }
+      } catch {
+        /* */
+      }
+
       const now = new Date().toISOString();
       setLastSyncAt(now);
       void idbSetMeta("last_sync_at", now);
@@ -2976,7 +3174,7 @@ export default function App() {
     );
 
     // --- OFFLINE PATH ---
-    if (!navigator.onLine || !supabase) {
+    if (!navigator.onLine || !supabase || isOfflineSession(session)) {
       // Validate stock against local cache
       for (const line of snapshot) {
         const p = products.find((x) => x.id === line.product.id);
@@ -3054,6 +3252,41 @@ export default function App() {
       setCart([]);
       setCreditor("");
       setPayment("cash");
+      // Reflect offline sale on Dashboard immediately
+      setSales((prev) => {
+        const row: Sale = {
+          id: offlineSale.id,
+          receipt_no: offlineSale.receipt_no,
+          total: offlineSale.total,
+          cost_total: offlineSale.cost_total,
+          payment_method: offlineSale.payment_method,
+          created_at: offlineSale.created_at,
+          cashier_id: offlineSale.cashier_id,
+          creditor_name: offlineSale.creditor_name,
+        };
+        const next = [row, ...prev.filter((x) => x.id !== row.id)];
+        try {
+          localStorage.setItem("barpos_cache_sales", JSON.stringify(next.slice(0, 200)));
+        } catch {
+          /* */
+        }
+        return next;
+      });
+      setSoldItems((prev) => {
+        const add = offlineSale.items.map((it) => ({
+          product_name: it.product_name,
+          quantity: it.quantity,
+          line_total: Number(it.unit_price) * Number(it.quantity),
+          sale_id: offlineSale.id,
+        }));
+        const next = [...add, ...prev];
+        try {
+          localStorage.setItem("barpos_cache_sale_items", JSON.stringify(next.slice(0, 500)));
+        } catch {
+          /* */
+        }
+        return next;
+      });
       flash("Sale saved offline — will sync when internet returns");
       requestBackgroundSync("barpos-sync");
       setSelling(false);
@@ -4215,12 +4448,27 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
     return { start, end };
   }
   const { start: bizStart, end: bizEnd } = getBusinessDayBounds();
-  const todaySales = sales.filter((s) => {
+  // Include offline queued sales so Dashboard matches online behaviour
+  const salesMerged = (() => {
+    const map = new Map<string, Sale>();
+    for (const s of sales) map.set(s.id, s);
+    for (const s of offlineQueueAsSales(pendingSales)) map.set(s.id, s);
+    return Array.from(map.values());
+  })();
+  const soldItemsMerged = (() => {
+    const offlineItems = offlineSaleItems(pendingSales);
+    const seen = new Set(soldItems.map((x) => `${x.sale_id}|${x.product_name}|${x.quantity}`));
+    const extra = offlineItems.filter(
+      (x) => !seen.has(`${x.sale_id}|${x.product_name}|${x.quantity}`),
+    );
+    return [...extra, ...soldItems];
+  })();
+  const todaySales = salesMerged.filter((s) => {
     const t = new Date(s.created_at).getTime();
     const inBizDay = t >= bizStart.getTime() && t < bizEnd.getTime();
     if (!inBizDay) return false;
     // Cashiers only see their own sales for the current business day
-    if (!isAdminNow) return s.cashier_id === session?.user?.id;
+    if (!isAdminNow) return s.cashier_id === session?.user?.id || s.cashier_id === profile?.id;
     return true;
   });
   const todayTotal = todaySales.reduce((n, s) => n + Number(s.total), 0);
@@ -4238,7 +4486,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
     0,
   );
   const todayNet = todayGross - (isAdminNow ? todayExpenses : 0);
-  const todayItems = soldItems.filter((i) =>
+  const todayItems = soldItemsMerged.filter((i) =>
     todaySales.some((s) => s.id === i.sale_id),
   );
   const lowStock = products.filter(
@@ -7495,6 +7743,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                 </div>
               </div>
             )}
+
             <label>
               Staff code
               <input
@@ -7529,7 +7778,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               </div>
             </label>
             <p className="tiny muted">
-              Admins and cashiers both sign in with this PIN on the login screen (login PIN mode). Each PIN must be unique.
+              Cashiers sign in with this PIN on the login screen (login PIN mode). Each PIN must be unique.
             </p>
             <div className="modal-actions">
               <button type="button" className="secondary" onClick={() => setEditingUser(null)}>

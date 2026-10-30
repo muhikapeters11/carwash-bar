@@ -4,9 +4,9 @@
 -- How to create a user in Supabase Dashboard:
 --   Authentication → Users → Add user
 --   Email: staff@example.com
---   Password: 4–12 digit PIN (e.g. 222222)  ← this IS the PIN
+--   Password: 4–12 digit PIN (e.g. YOUR_PIN)  ← this IS the PIN
 --   Auto Confirm User: ON
---   Optional User Metadata (JSON):  {"pin":"222222"}
+--   Optional User Metadata (JSON):  {"pin":"1234"}
 --
 -- Then run this whole script once (or again after adding users).
 -- ============================================================
@@ -125,9 +125,9 @@ $$;
 grant execute on function public.resolve_pin_login(text) to anon, authenticated;
 
 -- Optional: set PINs here if you did not use metadata (password in Auth must still = PIN)
--- update public.profiles p set pin_hash = encode(extensions.digest(convert_to('233456','UTF8'),'sha256'),'hex'),
---   active = true, role = 'admin', login_email = 'pmuhika7@gmail.com'
--- from auth.users u where p.id = u.id and lower(u.email) = 'pmuhika7@gmail.com';
+-- update public.profiles p set pin_hash = encode(extensions.digest(convert_to('YOUR_PIN','UTF8'),'sha256'),'hex'),
+--   active = true, role = 'admin', login_email = 'admin@example.com'
+-- from auth.users u where p.id = u.id and lower(u.email) = 'admin@example.com';
 
 select u.email, p.role, p.active, (p.pin_hash is not null) as has_pin_hash,
        u.raw_user_meta_data->>'pin' as meta_pin

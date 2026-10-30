@@ -1,7 +1,7 @@
 {
   "name": "carwash-pos",
   "private": true,
-  "version": "2.6.4",
+  "version": "2.6.8",
   "description": "Carwash POS \u2014 bar & restaurant point of sale",
   "author": "Carwash Bar & Restaurant",
   "main": "electron/main.cjs",
@@ -18,7 +18,8 @@
     "desktop:build:linux": "node scripts/apply-branding.mjs && node scripts/build-electron.cjs && electron-builder --linux",
     "brand": "node scripts/apply-branding.mjs",
     "postinstall": "node -e \"process.exit(0)\"",
-    "electron:deps": "electron-builder install-app-deps || true"
+    "electron:deps": "electron-builder install-app-deps || true",
+    "check:build": "node scripts/apply-branding.mjs && node scripts/build-electron.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -47,6 +48,7 @@
       "dist/**/*",
       "electron/**/*",
       "public/icon-*.png",
+      "public/carwash-logo.png",
       "public/sherehe-logo.png",
       "branding.json",
       "package.json"

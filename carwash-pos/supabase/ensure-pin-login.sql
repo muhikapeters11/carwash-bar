@@ -56,15 +56,4 @@ $$;
 
 grant execute on function public.resolve_pin_login(text) to anon, authenticated;
 
--- Fix your two users (Auth password must also = PIN in Dashboard)
-update public.profiles p
-set pin_hash = encode(extensions.digest(convert_to('233456', 'UTF8'), 'sha256'), 'hex'),
-    active = true, role = 'admin', login_email = 'pmuhika7@gmail.com'
-from auth.users u
-where p.id = u.id and lower(u.email) = 'pmuhika7@gmail.com';
-
-update public.profiles p
-set pin_hash = encode(extensions.digest(convert_to('222222', 'UTF8'), 'sha256'), 'hex'),
-    active = true, login_email = 'carwashbar1@gmail.com'
-from auth.users u
-where p.id = u.id and lower(u.email) = 'carwashbar1@gmail.com';
+-- (No user-specific PINs stored in repo. Set PIN hashes in SQL Editor per user.)
