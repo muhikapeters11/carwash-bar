@@ -799,37 +799,39 @@ export default function App() {
           setEmail(String(saved.email).trim().toLowerCase());
           setRememberMe(true);
         }
-        if (saved.password) setPassword(String(saved.password));
+        // Do not auto-fill PIN/password — user must type PIN each time
       }
     } catch {
       /* ignore */
     }
   }, []);
 
-  // Never auto sign-in: every launch shows login until user presses Sign in
+  // Never auto sign-in: clear stored session once at startup only
+  const loginBootRef = useRef(false);
   useEffect(() => {
+    if (loginBootRef.current) return;
+    loginBootRef.current = true;
     let cancelled = false;
     setSession(null);
     setProfile(null);
     (async () => {
       if (!supabase) return;
       try {
-        // Clear persisted Supabase session from this browser so the app never skips login
         await supabase.auth.signOut({ scope: "local" });
       } catch {
         /* ignore */
       }
+      // Only clear if user has not signed in during boot
       if (!cancelled) {
-        setSession(null);
-        setProfile(null);
+        setSession((cur) => (cur ? cur : null));
+        setProfile((cur) => (cur ? cur : null));
       }
     })();
     if (!supabase) return;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      // Do not restore session from storage / INITIAL_SESSION / SIGNED_IN
-      // Session enters the UI only via explicit finishLogin() after Sign in
+      // Ignore INITIAL_SESSION / SIGNED_IN from storage — only finishLogin sets session
       if (event === "SIGNED_OUT") {
         setSession(null);
         setProfile(null);
@@ -4346,11 +4348,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               <h1 className="login-club-name">
                 {settings.bar_name || "Carwash POS"}
               </h1>
-              {!isOnline && (
-                <p className="tiny" style={{ color: "#f59e0b", marginTop: 10 }}>
-                  Offline
-                </p>
-              )}
             </div>
           </div>
           <div className="login-pin-pane">
@@ -4364,7 +4361,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               <div className="login-pin-row">
                 <div className="login-pin-dots" aria-label="PIN">
                   {password.length === 0 ? (
-                    <span className="login-pin-placeholder">PIN</span>
+                    <span className="login-pin-placeholder" />
                   ) : showSecret ? (
                     <span className="login-pin-digits">{password}</span>
                   ) : (
@@ -4430,22 +4427,25 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
 
   if (!profile)
     return (
-      <div className="center">
+      <div className="center" style={{ minHeight: "100dvh", gap: 12, padding: 24 }}>
         <RefreshCw className="spin" />
-        <p>Loading your account…</p>
-        {error && <p className="error">{error}</p>}
-        <button className="secondary" onClick={loadProfile}>
-          Retry
-        </button>
+        <p>{error || "Loading your account…"}</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+          <button type="button" className="primary" onClick={() => void loadProfile()}>
+            Retry
+          </button>
+          <button type="button" className="secondary" onClick={() => void signOut()}>
+            Back to login
+          </button>
+        </div>
       </div>
     );
   if (!profile.active)
     return (
-      <div className="center">
+      <div className="center" style={{ minHeight: "100dvh", gap: 12, padding: 24 }}>
         <h2>Account disabled</h2>
-        <p>Ask your administrator to activate your account.</p>
-        <button className="secondary" onClick={signOut}>
-          Sign out
+        <button type="button" className="secondary" onClick={() => void signOut()}>
+          Back to login
         </button>
       </div>
     );
@@ -4484,7 +4484,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           />
           <span>
             <b>{settings.bar_name || "Carwash POS"}</b>
-            <small>Cloud workspace</small>
           </span>
         </div>
         <div className="nav-label">WORKSPACE</div>
@@ -4533,7 +4532,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               ☰
             </button>
             <div>
-              <div className="eyebrow">BAR MANAGEMENT</div>
               <h2>{tab}</h2>
             </div>
           </div>
