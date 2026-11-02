@@ -1170,6 +1170,7 @@ export default function App() {
     setProfile(profileRow);
     cacheProfile(profileRow);
     if (profileRow.active) {
+      setTab(profileRow.role === "admin" ? "Dashboard" : "Sell");
       const tabs: string[] = profileRow.allowed_tabs || [];
       if (tabs.length && !tabs.includes(tab)) {
         setTab(tabs.includes("Dashboard") ? "Dashboard" : tabs[0]);
@@ -1469,6 +1470,7 @@ export default function App() {
       }
       if (profile) {
         setProfile(profile);
+        setTab(profile.role === "admin" ? "Dashboard" : "Sell");
         if (cached.products?.length) setProducts(cached.products);
         else {
           try {
@@ -1548,6 +1550,7 @@ export default function App() {
         setProfile(created);
         cacheProfile(created);
         setError("");
+        setTab(created.role === "admin" ? "Dashboard" : "Sell");
         void (async () => {
           try {
             await Promise.all([refreshProductsOnly(), refreshSettingsOnly()]);
@@ -1568,6 +1571,7 @@ export default function App() {
       setProfile(prof);
       cacheProfile(prof);
       setError("");
+      setTab(prof.role === "admin" ? "Dashboard" : "Sell");
 
       // Instant UI: paint cached products/settings while network loads
       const cached = hydrateFromCache(prof.id);
@@ -4445,11 +4449,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                         else next = (password + k).slice(0, 12);
                         setPassword(next);
                         setPinLoginCode(next);
-                        if (next.length === 6 && k !== "C" && k !== "⌫") {
-                          window.setTimeout(() => {
-                            void signInWithPin();
-                          }, 80);
-                        }
+                        // No auto sign-in — user must press Sign in
                       }}
                     >
                       {k}
@@ -4473,9 +4473,18 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
 
   if (!profile)
     return (
-      <div className="center" style={{ minHeight: "100dvh", gap: 12, padding: 24 }}>
+      <div
+        className="center"
+        style={{
+          minHeight: "100dvh",
+          gap: 16,
+          padding: 24,
+          background: "#0f172a",
+          color: "#f8fafc",
+        }}
+      >
         <RefreshCw className="spin" />
-        <p>{error || "Loading your account…"}</p>
+        <p style={{ fontSize: 18 }}>{error || "Loading your account…"}</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
           <button type="button" className="primary" onClick={() => void loadProfile()}>
             Retry
