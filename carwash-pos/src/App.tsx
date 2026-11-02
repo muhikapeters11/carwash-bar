@@ -833,11 +833,17 @@ export default function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      // Only react to explicit sign-out. Never clear a session we just established
-      // via finishLogin (SIGNED_IN used to race and wipe profile → blank page).
-      if (event === "SIGNED_OUT" && !allowSessionRef.current) {
+      // Never open the app from storage / token refresh alone
+      if (event === "SIGNED_OUT") {
+        allowSessionRef.current = false;
         setSession(null);
         setProfile(null);
+      }
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (!allowSessionRef.current) {
+          setSession(null);
+          setProfile(null);
+        }
       }
     });
     return () => {
@@ -1052,7 +1058,6 @@ export default function App() {
   }, [session]);
   async function loadProfile() {
     if (!supabase || !session) return;
-    // Do not blank the UI if we already have this user's profile from finishLogin
     // Offline: use cached profile + products so POS stays usable
     if (!navigator.onLine) {
       const cached = loadCachedProfile();
@@ -1195,7 +1200,7 @@ export default function App() {
         };
         setSettings(nextSettings);
         cacheSettings(nextSettings);
-        // Do not force dark mode on login — black main looked broken
+        setDarkMode(!!data.dark_mode);
       }
     } catch {
       /* keep cache */
@@ -1513,9 +1518,6 @@ export default function App() {
           return;
         }
         setError("Logged in, but profile failed to load: " + pErr.message);
-        allowSessionRef.current = false;
-        setSession(null);
-        setProfile(null);
         return;
       }
       if (!prof) {
@@ -1542,8 +1544,6 @@ export default function App() {
             "Logged in, but no profile row exists and create failed: " +
               (insErr?.message || "unknown"),
           );
-          allowSessionRef.current = false;
-          setSession(null);
           setProfile(null);
           return;
         }
@@ -1571,7 +1571,6 @@ export default function App() {
       setProfile(prof);
       cacheProfile(prof);
       setError("");
-      setDarkMode(false);
       setTab(prof.role === "admin" ? "Dashboard" : "Sell");
 
       // Instant UI: paint cached products/settings while network loads
@@ -1623,10 +1622,6 @@ export default function App() {
         return;
       }
       setError(err?.message || "Login finished but data could not load.");
-      // Avoid blank/loading forever — return user to PIN screen with the error
-      allowSessionRef.current = false;
-      setSession(null);
-      setProfile(null);
     }
   }
 
@@ -2266,6 +2261,139 @@ export default function App() {
       "Create users only in Supabase Authentication. Set password to the PIN, then run SQL to set pin_hash.",
     );
     setShowCreateUser(false);
+  }
+
+
+  // Small, centralized toast helper. The previous build referenced `flash()` without
+  // defining it, which can crash the app immediately after a successful login.
+  function flash(message: string, ms = 3200) {
+    setNotice(message);
+    window.setTimeout(() => {
+      setNotice((current) => (current === message ? "" : current));
+    }, ms);
+  }
+
+  async function signOut() {
+    allowSessionRef.current = false;
+    try {
+      await supabase?.auth.signOut({ scope: "local" });
+    } catch {
+      /* Local state is still cleared below. */
+    }
+    setSession(null);
+    setProfile(null);
+    setCart([]);
+    setReceipt(null);
+    setError("");
+    setNotice("");
+  }
+
+  function resetProductForm(p?: Product | null) {
+    setForm({
+      name: p?.name || "",
+      category: p?.category || "Beer",
+      sku: p?.sku || "",
+      cost_price: p ? String(p.cost_price ?? "") : "",
+      sell_price: p ? String(p.sell_price ?? "") : "",
+      stock_qty: p ? String(p.stock_qty ?? 0) : "0",
+      min_stock: p ? String(p.min_stock ?? 5) : "5",
+      image_url: p?.image_url || "",
+      stock_unit: p?.stock_unit || "unit",
+      units_per_pack: String(p?.units_per_pack ?? 100),
+      active: p?.active !== false,
+    });
+  }
+
+  function openNewProduct() {
+    setEditing(null);
+    resetProductForm(null);
+    setError("");
+    setShowProduct(true);
+  }
+
+  function openEditProduct(p: Product) {
+    setEditing(p);
+    resetProductForm(p);
+    setError("");
+    setShowProduct(true);
+  }
+
+  async function saveProduct(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase || profile?.role !== "admin") {
+      setError("Only an admin can save products.");
+      return;
+    }
+
+    const name = String(form.name || "").trim();
+    const category = String(form.category || "Other").trim() || "Other";
+    const cost = Number(form.cost_price);
+    const sell = Number(form.sell_price);
+    const stock = Math.max(0, Math.round(Number(form.stock_qty) || 0));
+    const min = Math.max(0, Math.round(Number(form.min_stock) || 0));
+    const units = Math.max(1, Math.round(Number(form.units_per_pack) || 100));
+
+    if (!name) return setError("Product name is required.");
+    if (!Number.isFinite(cost) || cost < 0) return setError("Enter a valid cost price.");
+    if (!Number.isFinite(sell) || sell < 0) return setError("Enter a valid selling price.");
+
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        name,
+        category,
+        sku: String(form.sku || "").trim() || null,
+        cost_price: cost,
+        sell_price: sell,
+        stock_qty: stock,
+        min_stock: min,
+        image_url: String(form.image_url || "").trim() || null,
+        stock_unit: form.stock_unit === "barrel" ? "barrel" : "unit",
+        units_per_pack: units,
+        active: form.active !== false,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (editing?.id) {
+        const { data, error } = await supabase
+          .from("products")
+          .update(payload)
+          .eq("id", editing.id)
+          .select("*")
+          .single();
+        if (error) throw error;
+        setProducts((prev) => {
+          const list = prev.map((p) => (p.id === editing.id ? { ...p, ...data } : p));
+          cacheProducts(list);
+          void idbCacheProducts(list);
+          return list;
+        });
+        flash(`${name} updated`);
+      } else {
+        const { data, error } = await supabase
+          .from("products")
+          .insert(payload)
+          .select("*")
+          .single();
+        if (error) throw error;
+        setProducts((prev) => {
+          const list = [...prev, data as Product];
+          cacheProducts(list);
+          void idbCacheProducts(list);
+          return list;
+        });
+        flash(`${name} added`);
+      }
+
+      setShowProduct(false);
+      setEditing(null);
+      setShowAlphaKb(false);
+    } catch (err: any) {
+      setError(err?.message || "Could not save product.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function toggleProductActive(p: Product) {
@@ -4378,9 +4506,9 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
     .filter(
       (p) =>
         p.active &&
-        (p.name.toLowerCase().includes(search.toLowerCase()) ||
+        ((p.name || "").toLowerCase().includes(search.toLowerCase()) ||
           (p.sku || "").toLowerCase().includes(search.toLowerCase()) ||
-          p.category.toLowerCase().includes(search.toLowerCase())),
+          (p.category || "").toLowerCase().includes(search.toLowerCase())),
     )
     .sort((a, b) =>
       (a.sku || "").localeCompare(b.sku || "", undefined, {
@@ -4484,8 +4612,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           minHeight: "100dvh",
           gap: 16,
           padding: 24,
-          background: "#f5f7fb",
-          color: "#172033",
+          background: "#0f172a",
+          color: "#f8fafc",
         }}
       >
         <RefreshCw className="spin" />
@@ -5205,7 +5333,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   const items = filtered
                     .filter(
                       (p) =>
-                        p.category.toLowerCase() === category.toLowerCase() &&
+                        (p.category || "").toLowerCase() === category.toLowerCase() &&
                         !seen.has(p.id),
                     )
                     .sort((a, b) =>
@@ -5457,7 +5585,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   .filter(
                     (p) =>
                       p.active &&
-                      p.category.toLowerCase() === category.toLowerCase() &&
+                      (p.category || "").toLowerCase() === category.toLowerCase() &&
                       !seen.has(p.id),
                   )
                   .sort((a, b) =>
@@ -5662,7 +5790,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
                   .filter(
                     (p) =>
                       p.active &&
-                      p.category.toLowerCase() === category.toLowerCase() &&
+                      (p.category || "").toLowerCase() === category.toLowerCase() &&
                       !seen.has(p.id),
                   )
                   .sort((a, b) =>
@@ -7292,18 +7420,6 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           </form>
         </Modal>
       )}
-      {/* Fallback if tab content missing — never leave a black empty main */}
-      {!["Dashboard","Sell","Receive Stock","Inventory","Products","Credits","Suppliers","Expenses","Reports","Users","Activity Log","Backup & Settings"].includes(tab) && (
-        <div className="panel" style={{ marginTop: 16 }}>
-          <h3>Welcome</h3>
-          <p className="muted">Choose a section:</p>
-          <div className="row-actions" style={{ marginTop: 12 }}>
-            <button type="button" className="primary" onClick={() => setTab("Sell")}>Sell</button>
-            <button type="button" className="secondary" onClick={() => setTab("Dashboard")}>Dashboard</button>
-          </div>
-        </div>
-      )}
-
       {showExpense && (
         <Modal
           title="Record expense"
