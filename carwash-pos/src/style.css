@@ -6794,3 +6794,29 @@ div[data-netlify-ident],
   visibility: hidden !important;
   pointer-events: none !important;
 }
+
+
+/* v2.7.1 blank-page guard */
+.app-shell {
+  min-height: 100dvh !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.app-shell .main {
+  flex: 1 !important;
+  min-width: 0 !important;
+  min-height: 100dvh !important;
+  visibility: visible !important;
+}
+.center {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: #0f172a;
+  color: #f8fafc;
+}

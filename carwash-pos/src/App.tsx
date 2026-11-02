@@ -565,6 +565,8 @@ export default function App() {
   const [factoryPassword, setFactoryPassword] = useState("");
   const [factoryBusy, setFactoryBusy] = useState(false);
   const syncLockRef = useRef(false);
+  /** Only true after explicit PIN/password Sign in (finishLogin). Blocks auto-login. */
+  const allowSessionRef = useRef(false);
   const processOfflineQueueRef = useRef<() => Promise<void>>(async () => {});
 
 
@@ -806,12 +808,12 @@ export default function App() {
     }
   }, []);
 
-  // Never auto sign-in: clear stored session once at startup only
+  // Never auto sign-in: block UI session until explicit finishLogin
   const loginBootRef = useRef(false);
   useEffect(() => {
     if (loginBootRef.current) return;
     loginBootRef.current = true;
-    let cancelled = false;
+    allowSessionRef.current = false;
     setSession(null);
     setProfile(null);
     (async () => {
@@ -821,24 +823,30 @@ export default function App() {
       } catch {
         /* ignore */
       }
-      // Only clear if user has not signed in during boot
-      if (!cancelled) {
-        setSession((cur) => (cur ? cur : null));
-        setProfile((cur) => (cur ? cur : null));
+      // Hard clear React state after local signOut (never restore from storage)
+      if (!allowSessionRef.current) {
+        setSession(null);
+        setProfile(null);
       }
     })();
     if (!supabase) return;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      // Ignore INITIAL_SESSION / SIGNED_IN from storage — only finishLogin sets session
+      // Never open the app from storage / token refresh alone
       if (event === "SIGNED_OUT") {
+        allowSessionRef.current = false;
         setSession(null);
         setProfile(null);
       }
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (!allowSessionRef.current) {
+          setSession(null);
+          setProfile(null);
+        }
+      }
     });
     return () => {
-      cancelled = true;
       subscription.unsubscribe();
     };
   }, []);
@@ -1441,6 +1449,7 @@ export default function App() {
   }
   async function finishLogin(session: any, opts?: { password?: string; pin?: string }) {
     if (!session) return;
+    allowSessionRef.current = true;
     setSession(session);
 
     // Offline session or no network: hydrate from cache + offline vault
@@ -1510,10 +1519,43 @@ export default function App() {
         return;
       }
       if (!prof) {
-        setError(
-          "Logged in, but no profile row exists. Run the admin profile SQL in Supabase for this user.",
-        );
-        setProfile(null);
+        const email = String(session.user.email || "").toLowerCase();
+        const meta = (session.user as any).user_metadata || {};
+        const insertRow: any = {
+          id: session.user.id,
+          full_name:
+            meta.full_name || meta.name || (email ? email.split("@")[0] : "Staff"),
+          role: meta.role === "admin" ? "admin" : "cashier",
+          active: true,
+          login_email: email || null,
+          allowed_tabs: ["Dashboard", "Sell", "Credits", "Expenses"],
+        };
+        const { data: created, error: insErr } = await supabase
+          .from("profiles")
+          .upsert(insertRow, { onConflict: "id" })
+          .select(
+            "id,full_name,role,active,allowed_tabs,staff_code,pin_hash,login_email",
+          )
+          .single();
+        if (insErr || !created) {
+          setError(
+            "Logged in, but no profile row exists and create failed: " +
+              (insErr?.message || "unknown"),
+          );
+          setProfile(null);
+          return;
+        }
+        setProfile(created);
+        cacheProfile(created);
+        setError("");
+        void (async () => {
+          try {
+            await Promise.all([refreshProductsOnly(), refreshSettingsOnly()]);
+          } catch {
+            /* */
+          }
+          void refreshSecondary();
+        })();
         return;
       }
       if (!prof.active) {
@@ -2641,19 +2683,22 @@ export default function App() {
       return true;
     };
 
+    // Never open the main app from here — only refresh tokens for background sync
+    if (!allowSessionRef.current) return false;
+
     try {
       const { data } = await supabase.auth.getSession();
       const live = data.session;
       if (tokenOk(live)) {
-        // Upgrade offline UI session to real tokens when available
-        if (!session || isOfflineSession(session)) setSession(live);
+        // Upgrade offline UI session to real tokens only if user already signed in
+        if (session && isOfflineSession(session)) setSession(live);
         return true;
       }
     } catch {
       /* fall through to password refresh */
     }
 
-    // Silent cloud re-login for sync (remembered email/password on this device)
+    // Silent cloud re-login for SYNC only (does not show UI if allowSession is false)
     try {
       const raw = localStorage.getItem("barpos_remember_login");
       if (!raw) return false;
@@ -2666,7 +2711,8 @@ export default function App() {
         password: pw,
       });
       if (error || !data.session) return false;
-      setSession(data.session);
+      // Keep React session only if user already entered via PIN screen
+      if (allowSessionRef.current) setSession(data.session);
       return true;
     } catch {
       return false;
