@@ -833,17 +833,11 @@ export default function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      // Never open the app from storage / token refresh alone
-      if (event === "SIGNED_OUT") {
-        allowSessionRef.current = false;
+      // Only react to explicit sign-out. Never clear a session we just established
+      // via finishLogin (SIGNED_IN used to race and wipe profile → blank page).
+      if (event === "SIGNED_OUT" && !allowSessionRef.current) {
         setSession(null);
         setProfile(null);
-      }
-      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        if (!allowSessionRef.current) {
-          setSession(null);
-          setProfile(null);
-        }
       }
     });
     return () => {
@@ -1058,6 +1052,7 @@ export default function App() {
   }, [session]);
   async function loadProfile() {
     if (!supabase || !session) return;
+    // Do not blank the UI if we already have this user's profile from finishLogin
     // Offline: use cached profile + products so POS stays usable
     if (!navigator.onLine) {
       const cached = loadCachedProfile();
@@ -1200,7 +1195,7 @@ export default function App() {
         };
         setSettings(nextSettings);
         cacheSettings(nextSettings);
-        setDarkMode(!!data.dark_mode);
+        // Do not force dark mode on login — black main looked broken
       }
     } catch {
       /* keep cache */
@@ -1518,6 +1513,9 @@ export default function App() {
           return;
         }
         setError("Logged in, but profile failed to load: " + pErr.message);
+        allowSessionRef.current = false;
+        setSession(null);
+        setProfile(null);
         return;
       }
       if (!prof) {
@@ -1544,6 +1542,8 @@ export default function App() {
             "Logged in, but no profile row exists and create failed: " +
               (insErr?.message || "unknown"),
           );
+          allowSessionRef.current = false;
+          setSession(null);
           setProfile(null);
           return;
         }
@@ -1571,6 +1571,7 @@ export default function App() {
       setProfile(prof);
       cacheProfile(prof);
       setError("");
+      setDarkMode(false);
       setTab(prof.role === "admin" ? "Dashboard" : "Sell");
 
       // Instant UI: paint cached products/settings while network loads
@@ -1622,6 +1623,10 @@ export default function App() {
         return;
       }
       setError(err?.message || "Login finished but data could not load.");
+      // Avoid blank/loading forever — return user to PIN screen with the error
+      allowSessionRef.current = false;
+      setSession(null);
+      setProfile(null);
     }
   }
 
@@ -4479,8 +4484,8 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           minHeight: "100dvh",
           gap: 16,
           padding: 24,
-          background: "#0f172a",
-          color: "#f8fafc",
+          background: "#f5f7fb",
+          color: "#172033",
         }}
       >
         <RefreshCw className="spin" />
@@ -7287,6 +7292,18 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           </form>
         </Modal>
       )}
+      {/* Fallback if tab content missing — never leave a black empty main */}
+      {!["Dashboard","Sell","Receive Stock","Inventory","Products","Credits","Suppliers","Expenses","Reports","Users","Activity Log","Backup & Settings"].includes(tab) && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <h3>Welcome</h3>
+          <p className="muted">Choose a section:</p>
+          <div className="row-actions" style={{ marginTop: 12 }}>
+            <button type="button" className="primary" onClick={() => setTab("Sell")}>Sell</button>
+            <button type="button" className="secondary" onClick={() => setTab("Dashboard")}>Dashboard</button>
+          </div>
+        </div>
+      )}
+
       {showExpense && (
         <Modal
           title="Record expense"

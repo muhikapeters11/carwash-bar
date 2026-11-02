@@ -6820,3 +6820,76 @@ div[data-netlify-ident],
   background: #0f172a;
   color: #f8fafc;
 }
+
+/* login visual 2.7.3 */
+.login-wrap.login-pin-page {
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  background: #0f172a;
+}
+.login-split-v2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  min-height: 100dvh;
+}
+.login-brand-pane {
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.login-pin-pane {
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+html.dark .login-pin-pane { background: #151c2d; }
+.login-club-name {
+  color: #fff;
+  text-align: center;
+  margin-top: 16px;
+  font-size: clamp(22px, 3vw, 32px);
+}
+.login-sign-btn {
+  margin-top: 16px;
+  min-height: 52px;
+  font-size: 17px;
+  font-weight: 700;
+}
+@media (max-width: 768px) {
+  .login-split-v2 { grid-template-columns: 1fr; }
+  .login-brand-pane { min-height: 28dvh; }
+  .login-pin-pane { min-height: 72dvh; }
+}
+
+/* post-login main visible 2.7.4 */
+.app-shell {
+  background: #f5f7fb !important;
+  min-height: 100dvh !important;
+  display: flex !important;
+}
+.app-shell .main {
+  flex: 1 !important;
+  min-width: 0 !important;
+  min-height: 100dvh !important;
+  background: #f5f7fb !important;
+  color: #172033 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: auto !important;
+}
+.app-shell .panel,
+.app-shell .stat-card {
+  background: #fff !important;
+  color: #172033 !important;
+}
+.app-shell h2, .app-shell h3 {
+  color: #172033 !important;
+}
