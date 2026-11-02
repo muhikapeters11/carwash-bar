@@ -83,20 +83,7 @@ create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public
 as $$ select exists(select 1 from public.profiles p where p.id = auth.uid() and p.active = true and p.role = 'admin'); $$;
 
--- Automatically create a cashier profile for newly registered auth users.
-create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public
-as $$
-begin
-  insert into public.profiles(id, full_name, role, active)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name',''), 'cashier', true)
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-drop trigger if exists on_auth_user_created_barpos on auth.users;
-create trigger on_auth_user_created_barpos after insert on auth.users
-for each row execute procedure public.handle_new_user();
+-- Profile creation is intentionally manual in Supabase SQL Editor.
 
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;

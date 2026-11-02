@@ -88,20 +88,7 @@ create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public
 as $$ select exists(select 1 from public.profiles p where p.id = auth.uid() and p.active = true and p.role = 'admin'); $$;
 
--- Automatically create a cashier profile for newly registered auth users.
-create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public
-as $$
-begin
-  insert into public.profiles(id, full_name, role, active)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name',''), 'cashier', true)
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-drop trigger if exists on_auth_user_created_barpos on auth.users;
-create trigger on_auth_user_created_barpos after insert on auth.users
-for each row execute procedure public.handle_new_user();
+-- Profile creation is intentionally manual in Supabase SQL Editor.
 
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;
@@ -1406,33 +1393,7 @@ on conflict (id) do update set
   active = true,
   full_name = coalesce(nullif(public.profiles.full_name, ''), excluded.full_name);
 
--- Auto-create profile whenever a user is created in Authentication
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.profiles (id, full_name, role, active, login_email)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'role', 'cashier'),
-    true,
-    lower(new.email)
-  )
-  on conflict (id) do update set
-    login_email = excluded.login_email,
-    active = true;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created_barpos on auth.users;
-create trigger on_auth_user_created_barpos
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+-- Profile creation is intentionally manual in Supabase SQL Editor.
 
 -- RLS: user can read/update own profile; admin can manage
 alter table public.profiles enable row level security;
@@ -1442,10 +1403,6 @@ create policy "profile read own or admin" on public.profiles
   for select to authenticated
   using (id = auth.uid() or public.is_admin());
 
-drop policy if exists "profile insert own" on public.profiles;
-create policy "profile insert own" on public.profiles
-  for insert to authenticated
-  with check (id = auth.uid() or public.is_admin());
 
 drop policy if exists "profile update own or admin" on public.profiles;
 create policy "profile update own or admin" on public.profiles

@@ -1121,7 +1121,7 @@ export default function App() {
     }
     if (!data) {
       setProfile(null);
-      setError("No profile found for this Auth user. Create the profile in Supabase and try again.");
+      setError("No profile exists for this Auth user. Create the profile in Supabase (SQL Editor) first. The POS will not create profiles.");
       return;
     }
     // Keep profile linked to Auth email so login never loses profile later
@@ -1496,7 +1496,7 @@ export default function App() {
         return;
       }
       if (!prof) {
-        setError("Logged in, but no profile exists for this Auth user. Create the profile in Supabase.");
+        setError("Logged in, but no profile exists for this Auth user. Create the profile in Supabase SQL Editor first. The POS will not create profiles.");
         setProfile(null);
         return;
       }
@@ -3850,7 +3850,7 @@ export default function App() {
     setBusy(true);
     const { data, error } = await supabase.from("profiles").update({ full_name: displayName }).eq("id", editingUser.id).select("id,full_name,role,active,allowed_tabs,staff_code,login_email,created_at").maybeSingle();
     if (error) setError("Could not update user profile: " + error.message);
-    else if (!data) setError("No profile found for this Auth user. Create/link the profile in Supabase first.");
+    else if (!data) setError("No profile found for this Auth user. Create/link the profile in Supabase SQL Editor first.");
     else {
       setProfiles(old => old.map(u => u.id === data.id ? { ...u, ...data } : u));
       syncCachedProfiles([data]);

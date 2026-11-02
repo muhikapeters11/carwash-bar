@@ -128,3 +128,7 @@ Create a private Storage bucket named `backups` (function will try to create it)
 8. **Multi-till stock** — clearer “stock changed on another till” errors + auto refresh
 9. **Profit reports** — by category and by product
 10. **Faster sell** — favorites (★), qty steppers, hold sale (existing)
+
+
+## User/profile management
+User accounts are created and managed in Supabase Authentication and `public.profiles`. The POS does not create users or profiles. After creating an Auth user, run `supabase/MANUAL-PROFILE-SETUP.sql` in Supabase SQL Editor and create/link the matching profile. In the POS Admin > Users tab, only the receipt/display name can be edited.
