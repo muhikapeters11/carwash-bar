@@ -1139,13 +1139,31 @@ export default function App() {
       })();
       return;
     }
-    setProfile(data);
-    cacheProfile(data);
-    if (data.active) {
-      const tabs: string[] = data.allowed_tabs || [];
+    // Keep profile linked to Auth email so login never loses profile later
+    let profileRow = data;
+    try {
+      const email = String(session.user.email || "").toLowerCase();
+      if (email && (data.login_email || "").toLowerCase() !== email) {
+        const { data: patched } = await supabase
+          .from("profiles")
+          .update({ login_email: email, active: data.active !== false })
+          .eq("id", session.user.id)
+          .select(
+            "id,full_name,role,active,allowed_tabs,staff_code,pin_hash,login_email",
+          )
+          .single();
+        if (patched) profileRow = patched;
+      }
+    } catch {
+      /* */
+    }
+    setProfile(profileRow);
+    cacheProfile(profileRow);
+    if (profileRow.active) {
+      const tabs: string[] = profileRow.allowed_tabs || [];
       if (tabs.length && !tabs.includes(tab)) {
         setTab(tabs.includes("Dashboard") ? "Dashboard" : tabs[0]);
-      } else if (data.role === "admin") {
+      } else if (profileRow.role === "admin") {
         setTab("Dashboard");
       }
       const cached = hydrateFromCache(data.id);
@@ -2191,203 +2209,10 @@ export default function App() {
 
   async function createStaffUser(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase || profile?.role !== "admin") return;
-    const code = (userForm.staff_code || userForm.full_name)
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "")
-      .slice(0, 20);
-    const pin = userForm.pin.trim();
-    if (!userForm.full_name.trim() || !code || pin.length < 4) {
-      setError("Name, staff code, and PIN (min 4) are required");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    // Prefer Edge Function (service role) when deployed
-    try {
-      const { data: fnData, error: fnErr } = await supabase.functions.invoke("admin-user", {
-        body: {
-          action: "create",
-          full_name: userForm.full_name.trim(),
-          pin,
-          staff_code: code,
-          role: userForm.role,
-          allowed_tabs: userForm.allowed_tabs,
-        },
-      });
-      if (!fnErr && fnData && !(fnData as any).error) {
-        await supabase.rpc("log_activity", {
-          p_action: "user_created",
-          p_details: `${userForm.full_name} (${code})`,
-        });
-        flash(`Staff created — sign in with PIN only`);
-        setShowCreateUser(false);
-        setUserForm({
-          full_name: "",
-          role: "cashier",
-          active: true,
-          allowed_tabs: ["Dashboard", "Sell", "Credits", "Expenses"],
-          pin: "",
-          staff_code: "",
-        });
-        await refreshAll();
-        setBusy(false);
-        return;
-      }
-    } catch {
-      /* fall through to client signUp */
-    }
-    const loginEmail = `${code}@bar.local`;
-    const { data, error } = await supabase.auth.signUp({
-      email: loginEmail,
-      password: pin,
-      options: { data: { full_name: userForm.full_name.trim() } },
-    });
-    if (error) {
-      setError(error.message + " (Enable Email signups in Supabase Auth, or deploy the admin-user Edge Function.)");
-      setBusy(false);
-      return;
-    }
-    if (data.user) {
-      const pinHash = await hashPin(pin);
-      const { error: profErr } = await supabase
-        .from("profiles")
-        .update({
-          full_name: userForm.full_name.trim(),
-          role: userForm.role,
-          active: true,
-          staff_code: code,
-          login_email: loginEmail,
-          pin_hash: pinHash,
-          allowed_tabs:
-            userForm.role === "admin"
-              ? ALL_TABS
-              : userForm.allowed_tabs.length
-                ? userForm.allowed_tabs
-                : ["Dashboard", "Sell", "Credits", "Expenses"],
-        })
-        .eq("id", data.user.id);
-      if (profErr) {
-        setError(
-          "Auth user created but profile PIN failed: " +
-            profErr.message +
-            " — open Users → Edit and set the PIN again.",
-        );
-        setBusy(false);
-        await refreshAll();
-        return;
-      }
-      // Best-effort: confirm email + ensure password via edge function if available
-      try {
-        await supabase.functions.invoke("admin-user", {
-          body: { action: "reset_pin", user_id: data.user.id, pin },
-        });
-      } catch {
-        /* optional */
-      }
-      await supabase.rpc("log_activity", {
-        p_action: "user_created",
-        p_details: `${userForm.full_name} (${code})`,
-      });
-      flash(`Staff created — they sign in with PIN only`);
-      setShowCreateUser(false);
-      setUserForm({
-        full_name: "",
-        role: "cashier",
-        active: true,
-        allowed_tabs: ["Dashboard", "Sell", "Credits", "Expenses"],
-        pin: "",
-        staff_code: "",
-      });
-      await refreshAll();
-    }
-    setBusy(false);
-  }
-  async function signOut() {
-    await supabase?.auth.signOut();
-    setSession(null);
-    setProfile(null);
-    setCart([]);
-  }
-  function flash(s: string) {
-    setNotice(s);
-    window.setTimeout(() => setNotice(""), 3500);
-  }
-  function openNewProduct() {
-    setEditing(null);
-    setForm({
-      name: "",
-      category: "Beer",
-      sku: "",
-      cost_price: "",
-      sell_price: "",
-      stock_qty: "0",
-      min_stock: "5",
-      image_url: "",
-      stock_unit: "unit",
-      units_per_pack: "100",
-      active: true,
-    });
-    setShowProduct(true);
-  }
-  function openEditProduct(p: Product) {
-    setEditing(p);
-    setForm({
-      name: p.name,
-      category: p.category,
-      sku: p.sku || "",
-      cost_price: String(p.cost_price),
-      sell_price: String(p.sell_price),
-      stock_qty: String(p.stock_qty),
-      min_stock: String(p.min_stock),
-      image_url: p.image_url || "",
-      stock_unit: p.stock_unit || "unit",
-      units_per_pack: String(p.units_per_pack || 100),
-      active: p.active !== false,
-    });
-    setShowProduct(true);
-  }
-  async function saveProduct(e: React.FormEvent) {
-    e.preventDefault();
-    if (!supabase) return;
-    setBusy(true);
-    setError("");
-    const payload = {
-      name: form.name.trim(),
-      category: form.category,
-      sku: form.sku.trim() || null,
-      cost_price: Number(form.cost_price),
-      sell_price: Number(form.sell_price),
-      min_stock: Number(form.min_stock),
-      image_url: form.image_url || null,
-      stock_unit: form.stock_unit,
-      units_per_pack: Number(form.units_per_pack) || 100,
-      active: form.active !== false,
-      ...(editing
-        ? {}
-        : {
-            stock_qty:
-              Number(form.stock_qty) *
-              (form.stock_unit === "barrel"
-                ? Number(form.units_per_pack || 100)
-                : 1),
-          }),
-    };
-    const result = editing
-      ? await supabase.from("products").update(payload).eq("id", editing.id)
-      : await supabase.from("products").insert(payload);
-    if (result.error) setError(result.error.message);
-    else {
-      setShowProduct(false);
-      await supabase.rpc("log_activity", {
-        p_action: editing ? "product_updated" : "product_created",
-        p_details: `${form.name} · sell ${form.sell_price} · cost ${form.cost_price}`,
-      });
-      flash(editing ? "Product updated" : "Product created");
-      await refreshAll();
-    }
-    setBusy(false);
+    setError(
+      "Create users only in Supabase Authentication. Set password to the PIN, then run SQL to set pin_hash.",
+    );
+    setShowCreateUser(false);
   }
 
   async function toggleProductActive(p: Product) {
@@ -6597,25 +6422,10 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
               <div>
                 <h3>Users & permissions</h3>
               </div>
-              <button
-                className="primary"
-                onClick={() => {
-                  setUserForm({
-                    full_name: "",
-                    role: "cashier",
-                    active: true,
-                    allowed_tabs: ["Dashboard", "Sell", "Credits", "Expenses"],
-                    pin: "",
-                    staff_code: "",
-                  });
-                  setShowCreateUser(true);
-                }}
-              >
-                <Plus size={16} /> Create user
-              </button>
+
             </div>
             <div className="alert info-alert" style={{ marginBottom: 16 }}>
-              Email signups must be enabled in Supabase Auth when creating users from this screen. To remove a user, use Delete (disables the account; sales history is kept).
+              Create staff only in Supabase Authentication. Set Auth password to their PIN, then set pin_hash in SQL (or save PIN when editing). Delete here only disables the account.
             </div>
             <div className="table-scroll">
               <table>
@@ -7594,98 +7404,7 @@ th{background:#f8fafc} @media print{button{display:none}}</style></head><body>
           </form>
         </Modal>
       )}
-
-      {showCreateUser && (
-        <Modal title="Create staff user" onClose={() => { setShowCreateUser(false); setShowAlphaKb(false); }}>
-          <form className="stack" onSubmit={createStaffUser}>
-            <label>
-              Full name
-              <input
-                required
-                value={userForm.full_name}
-                onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })}
-                placeholder="e.g. Jane"
-              />
-            </label>
-            <label>
-              Staff code
-              <input
-                required
-                value={userForm.staff_code}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    staff_code: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""),
-                  })
-                }
-                placeholder="e.g. jane"
-              />
-            </label>
-            <label>
-              PIN (min 4)
-              <input
-                required
-                id="create-pin-input"
-                type={showSecret ? "text" : "password"}
-                value={userForm.pin}
-                onChange={(e) => setUserForm({ ...userForm, pin: e.target.value })}
-                onFocus={() => openKb("createPin", "alnum")}
-                onClick={() => openKb("createPin", "alnum")}
-                placeholder="Login PIN"
-              />
-            </label>
-            <label>
-              Role
-              <select
-                value={userForm.role}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    role: e.target.value,
-                    allowed_tabs: e.target.value === "admin" ? [...ALL_TABS] : userForm.allowed_tabs,
-                  })
-                }
-              >
-                <option value="cashier">Cashier</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-            {userForm.role === "cashier" && (
-              <div>
-                <div className="field-label" style={{ marginBottom: 8 }}>Allowed tabs</div>
-                <div className="perm-grid">
-                  {ALL_TABS.map((t) => (
-                    <label key={t} className="perm-check">
-                      <input
-                        type="checkbox"
-                        checked={userForm.allowed_tabs.includes(t)}
-                        onChange={(e) => {
-                          const next = e.target.checked
-                            ? [...userForm.allowed_tabs, t]
-                            : userForm.allowed_tabs.filter((x) => x !== t);
-                          setUserForm({ ...userForm, allowed_tabs: next });
-                        }}
-                      />
-                      {t}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="modal-actions">
-              <button type="button" className="secondary" onClick={() => setShowCreateUser(false)}>
-                Cancel
-              </button>
-              <button className="primary" disabled={busy} type="submit">
-                Create user
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {editingUser && (
+{editingUser && (
         <Modal title={`Edit user · ${editingUser.full_name || editingUser.id.slice(0, 8)}`} onClose={() => setEditingUser(null)}>
           <form className="stack" onSubmit={saveUser}>
             <label>
